@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wsl.exe -d Ubuntu bash -lc 'cd ~/bussola-content && pwd && \\(node -v 2>/dev/null || echo \"no-node\"\\) && \\(npx -v 2>/dev/null || echo \"no-npx\"\\)')",
+      "Bash(wsl.exe -d Ubuntu bash -lc 'cd ~/bussola-content && rm -rf node_modules package-lock.json && npm install 2>&1 | tail -6')"
+    ]
+  }
+}
