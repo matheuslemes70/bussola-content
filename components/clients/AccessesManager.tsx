@@ -49,8 +49,8 @@ export function AccessesManager({
         Logins e senhas das plataformas do cliente. Visível apenas para admin e social media.
       </p>
 
-      <div className="overflow-hidden rounded-lg border border-slate-200">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto rounded-lg border border-slate-200">
+        <table className="w-full min-w-[28rem] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
               <th className="px-3 py-2">Plataforma</th>

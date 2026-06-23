@@ -61,15 +61,15 @@ export default async function PostPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           {c && (
             <Link href={`/clientes/${c.id}`} className="text-sm text-slate-400 hover:underline">
               ← {c.nome}
             </Link>
           )}
-          <div className="mt-1 flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-800">{p.titulo}</h1>
+          <div className="mt-1 flex flex-wrap items-center gap-3">
+            <h1 className="break-words text-2xl font-bold text-slate-800">{p.titulo}</h1>
             <StatusBadge status={p.status} />
             {atrasado && <AtrasadoBadge />}
           </div>
@@ -204,9 +204,9 @@ export default async function PostPage({
 
 function Info({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-xs font-medium uppercase text-slate-400">{label}</dt>
-      <dd className="mt-0.5 text-slate-700">{value}</dd>
+      <dd className="mt-0.5 break-words text-slate-700">{value}</dd>
     </div>
   );
 }

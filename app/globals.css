@@ -6,6 +6,20 @@
   color-scheme: light;
 }
 
+/* Rede de segurança contra scroll horizontal indesejado no mobile */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
+}
+
+/* Imagens e mídias nunca ultrapassam o container */
+img,
+svg,
+video {
+  max-width: 100%;
 }

@@ -153,7 +153,7 @@ export function Calendar({
         {pautaLink && (
           <div className="mt-2 flex items-center gap-2">
             <input readOnly value={pautaLink}
-              className="flex-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600" />
+              className="min-w-0 flex-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600" />
             <button onClick={copiarLink}
               className="rounded bg-bussola-blue px-3 py-1 text-xs font-medium text-white hover:brightness-110">
               {copiado ? "Copiado!" : "Copiar"}

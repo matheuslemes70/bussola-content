@@ -24,8 +24,8 @@ export default async function EquipePage() {
         criar o login, o perfil aparece aqui automaticamente para você definir o cargo.
       </p>
 
-      <div className="overflow-hidden rounded-xl bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
+        <table className="w-full min-w-[40rem] text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
               <th className="px-4 py-3">Nome</th>

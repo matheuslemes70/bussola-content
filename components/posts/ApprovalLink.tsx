@@ -52,7 +52,7 @@ export function ApprovalLink({
             <input
               readOnly
               value={link}
-              className="flex-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600"
+              className="min-w-0 flex-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600"
             />
             <button
               onClick={copiar}
