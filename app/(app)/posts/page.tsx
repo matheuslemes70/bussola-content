@@ -50,15 +50,15 @@ export default async function PostsPage({
 
       <PostFilters clients={allClients} users={allUsers} />
 
-      <div className="overflow-hidden rounded-xl bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
               <th className="px-4 py-3">Título</th>
-              <th className="px-4 py-3">Cliente</th>
-              <th className="px-4 py-3">Formato</th>
+              <th className="hidden px-4 py-3 md:table-cell">Cliente</th>
+              <th className="hidden px-4 py-3 lg:table-cell">Formato</th>
               <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Responsável</th>
+              <th className="hidden px-4 py-3 lg:table-cell">Responsável</th>
               <th className="px-4 py-3">Data</th>
             </tr>
           </thead>
@@ -81,19 +81,19 @@ export default async function PostsPage({
                       {p.titulo}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">
+                  <td className="hidden px-4 py-3 text-slate-600 md:table-cell">
                     {cli ? (
                       <Link href={`/clientes/${cli.id}`} className="hover:underline">{cli.nome}</Link>
                     ) : "—"}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{FORMAT_LABELS[p.formato]}</td>
+                  <td className="hidden px-4 py-3 text-slate-600 lg:table-cell">{FORMAT_LABELS[p.formato]}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
                       <StatusBadge status={p.status} />
                       {atrasado && <AtrasadoBadge />}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{resp?.nome || resp?.email || "—"}</td>
+                  <td className="hidden px-4 py-3 text-slate-600 lg:table-cell">{resp?.nome || resp?.email || "—"}</td>
                   <td className={`px-4 py-3 ${atrasado ? "font-semibold text-red-600" : "text-slate-600"}`}>
                     {formatDate(p.data_publicacao_planejada)}
                   </td>

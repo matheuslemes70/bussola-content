@@ -66,7 +66,7 @@ export default async function ClientePage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <Link href="/clientes" className="text-sm text-slate-400 hover:underline">
             ← Clientes
@@ -95,10 +95,10 @@ export default async function ClientePage({
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-slate-200">
+      <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
         {TABS.map((t) => (
           <Link key={t.id} href={`/clientes/${c.id}?tab=${t.id}`}
-            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition ${
+            className={`-mb-px whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium transition ${
               activeTab === t.id
                 ? "border-bussola-yellow font-semibold text-black"
                 : "border-transparent text-slate-500 hover:text-slate-700"

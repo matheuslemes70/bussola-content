@@ -65,15 +65,15 @@ export default async function ClientesPage({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
               <th className="px-4 py-3">Nome</th>
-              <th className="px-4 py-3">Responsável</th>
-              <th className="px-4 py-3 text-center">Posts a fazer</th>
+              <th className="hidden px-4 py-3 md:table-cell">Responsável</th>
+              <th className="hidden px-4 py-3 text-center sm:table-cell">Posts a fazer</th>
               <th className="px-4 py-3 text-center">Atrasados</th>
-              <th className="px-4 py-3">Último publicado</th>
+              <th className="hidden px-4 py-3 lg:table-cell">Último publicado</th>
               <th className="px-4 py-3">Status</th>
             </tr>
           </thead>
@@ -104,8 +104,8 @@ export default async function ClientesPage({
                       {c.nome}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{resp?.nome || resp?.email || "—"}</td>
-                  <td className="px-4 py-3 text-center text-slate-600">{aFazer}</td>
+                  <td className="hidden px-4 py-3 text-slate-600 md:table-cell">{resp?.nome || resp?.email || "—"}</td>
+                  <td className="hidden px-4 py-3 text-center text-slate-600 sm:table-cell">{aFazer}</td>
                   <td className="px-4 py-3 text-center">
                     {atrasados > 0 ? (
                       <span className="font-semibold text-red-600">{atrasados}</span>
@@ -113,7 +113,7 @@ export default async function ClientesPage({
                       <span className="text-slate-400">0</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{formatDate(ultimo)}</td>
+                  <td className="hidden px-4 py-3 text-slate-600 lg:table-cell">{formatDate(ultimo)}</td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full px-2 py-0.5 text-xs ${
                       c.status === "ativo" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"

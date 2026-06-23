@@ -50,7 +50,7 @@ export function Kanban({
   }
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-3">
+    <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-3 [-webkit-overflow-scrolling:touch]">
       {KANBAN_COLUMN_ORDER.map((status) => {
         const col = items.filter((p) => p.status === status);
         const isOver = overCol === status;
@@ -65,7 +65,7 @@ export function Kanban({
               if (e.currentTarget === e.target) setOverCol(null);
             }}
             onDrop={() => onDrop(status)}
-            className={`flex w-64 flex-shrink-0 flex-col rounded-xl p-2 transition ${
+            className={`flex w-[80vw] max-w-[18rem] flex-shrink-0 snap-start flex-col rounded-xl p-2 transition sm:w-64 ${
               isOver ? "bg-bussola-yellow/20 ring-2 ring-bussola-yellow" : "bg-slate-100"
             }`}
           >

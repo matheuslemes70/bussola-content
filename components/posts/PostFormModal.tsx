@@ -65,8 +65,8 @@ export function PostFormModal({
       )}
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/40 sm:items-center sm:p-4">
+          <div className="w-full overflow-y-auto bg-white p-5 shadow-xl sm:max-h-[90vh] sm:max-w-lg sm:rounded-2xl sm:p-6">
             <h2 className="mb-4 text-lg font-semibold text-slate-800">
               {editing ? "Editar post" : "Novo post"}
             </h2>

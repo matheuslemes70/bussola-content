@@ -96,13 +96,13 @@ export function PautaForm({
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-bussola-blue"
           />
           {erro && <p className="mt-2 text-sm text-red-600">{erro}</p>}
-          <div className="mt-3 flex gap-3">
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row">
             <button onClick={() => submit("aprovada")} disabled={pending}
-              className="flex-1 rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">
+              className="flex-1 rounded-xl bg-emerald-600 py-4 text-base font-semibold text-white hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-60">
               Aprovar pauta
             </button>
             <button onClick={() => submit("ajustes_solicitados")} disabled={pending}
-              className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-60">
+              className="flex-1 rounded-xl bg-orange-500 py-4 text-base font-semibold text-white hover:bg-orange-600 active:bg-orange-700 disabled:opacity-60">
               Solicitar ajustes
             </button>
           </div>

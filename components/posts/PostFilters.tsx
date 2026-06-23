@@ -15,10 +15,10 @@ export function PostFilters({ clients, users }: { clients: Client[]; users: User
     router.push(`/posts?${next.toString()}`);
   }
 
-  const sel = "rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-bussola-blue";
+  const sel = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-bussola-blue sm:w-auto";
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-col flex-wrap gap-2 sm:flex-row sm:items-center">
       <select value={params.get("client") ?? ""} onChange={(e) => setParam("client", e.target.value)} className={sel}>
         <option value="">Todos os clientes</option>
         {clients.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}

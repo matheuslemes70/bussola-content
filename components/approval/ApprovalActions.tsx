@@ -71,18 +71,18 @@ export function ApprovalActions({
         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-bussola-blue"
       />
       {erro && <p className="text-sm text-red-600">{erro}</p>}
-      <div className="flex gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row">
         <button
           onClick={aprovar}
           disabled={pending}
-          className="flex-1 rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+          className="flex-1 rounded-xl bg-emerald-600 py-4 text-base font-semibold text-white hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-60"
         >
           Aprovar
         </button>
         <button
           onClick={solicitarAjuste}
           disabled={pending}
-          className="flex-1 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-60"
+          className="flex-1 rounded-xl bg-orange-500 py-4 text-base font-semibold text-white hover:bg-orange-600 active:bg-orange-700 disabled:opacity-60"
         >
           Solicitar ajuste
         </button>
