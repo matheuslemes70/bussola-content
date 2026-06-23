@@ -5,7 +5,9 @@
       "Bash(wsl.exe -d Ubuntu bash -lc 'cd ~/bussola-content && rm -rf node_modules package-lock.json && npm install 2>&1 | tail -6')",
       "mcp__Claude_in_Chrome__resize_window",
       "mcp__Claude_in_Chrome__computer",
-      "mcp__Claude_in_Chrome__javascript_tool"
+      "mcp__Claude_in_Chrome__javascript_tool",
+      "mcp__Claude_in_Chrome__navigate",
+      "Bash(wsl.exe -d Ubuntu bash -lc 'pgrep -af next-server || echo \"no next-server\"')"
     ]
   }
 }
