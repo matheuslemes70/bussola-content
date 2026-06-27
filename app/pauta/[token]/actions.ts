@@ -5,6 +5,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyPautaResponse } from "@/lib/notifications";
 import type { PautaStatus } from "@/lib/types";
 
+function pad(n: number) {
+  return String(n).padStart(2, "0");
+}
+
 export async function submitPauta(
   token: string,
   decision: PautaStatus, // 'aprovada' | 'ajustes_solicitados'
@@ -14,6 +18,11 @@ export async function submitPauta(
 ) {
   const supabase = createAdminClient();
 
+  // Apenas decisões válidas para uma resposta do cliente.
+  if (decision !== "aprovada" && decision !== "ajustes_solicitados") {
+    return { error: "Ação inválida." };
+  }
+
   const { data: pauta } = await supabase
     .from("pauta_approvals")
     .select("*")
@@ -21,15 +30,31 @@ export async function submitPauta(
     .single();
   if (!pauta) return { error: "Link inválido." };
 
+  // Não permite sobrescrever uma pauta já respondida.
+  if (pauta.status !== "pendente") {
+    return { error: "Esta pauta já foi respondida." };
+  }
+
   if (decision === "ajustes_solicitados" && !comentarioGeral.trim() &&
       !postComments.some((c) => c.texto.trim())) {
     return { error: "Descreva os ajustes desejados (geral ou em algum post)." };
   }
 
+  // IMPORTANTE: o admin client ignora o RLS. Validamos que cada postId
+  // pertence MESMO a esta pauta (cliente + mês) antes de inserir qualquer
+  // comentário, evitando injeção de comentários em posts de outros clientes.
+  const { data: validPosts } = await supabase
+    .from("posts")
+    .select("id")
+    .eq("client_id", pauta.client_id)
+    .gte("data_publicacao_planejada", `${pauta.ano}-${pad(pauta.mes)}-01`)
+    .lte("data_publicacao_planejada", `${pauta.ano}-${pad(pauta.mes)}-31`);
+  const allowed = new Set((validPosts ?? []).map((p) => p.id));
+
   // Comentários por post → tabela de comments (tipo cliente), visíveis no post.
   const nome = autor.trim() || "Cliente";
   const inserts = postComments
-    .filter((c) => c.texto.trim())
+    .filter((c) => c.texto.trim() && allowed.has(c.postId))
     .map((c) => ({
       post_id: c.postId,
       author_name: nome,

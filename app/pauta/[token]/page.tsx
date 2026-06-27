@@ -39,7 +39,15 @@ export default async function PautaPage({
   ]);
 
   const c = client as Client | null;
-  const monthPosts = (posts as Post[]) ?? [];
+  // DTO mínimo: nunca enviar briefing (a menos que liberado), reference_link,
+  // delivered_link, public_token, responsavel_id, etc. para a página pública.
+  const monthPosts = ((posts as Post[]) ?? []).map((p) => ({
+    id: p.id,
+    titulo: p.titulo,
+    formato: p.formato,
+    data_publicacao_planejada: p.data_publicacao_planejada,
+    briefing: pauta.incluir_briefing ? p.briefing : "",
+  }));
   const respondida = pauta.status !== "pendente";
 
   return (

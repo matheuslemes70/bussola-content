@@ -17,6 +17,16 @@ function postUrl(postId: string) {
   return `${base}/posts/${postId}`;
 }
 
+// Escapa valores dinâmicos interpolados no HTML do e-mail (anti-injeção/phishing).
+function esc(s: string | null | undefined): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function layout(title: string, body: string, postId: string) {
   return `
     <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
@@ -63,8 +73,8 @@ export async function notifyNewPost(supabase: SupabaseClient, postId: string) {
     subject: `Novo post atribuído a você — ${ctx.post.titulo}`,
     html: layout(
       "Novo post atribuído a você",
-      `Você é o responsável pelo post <strong>${ctx.post.titulo}</strong>${
-        ctx.client ? ` (cliente ${ctx.client.nome})` : ""
+      `Você é o responsável pelo post <strong>${esc(ctx.post.titulo)}</strong>${
+        ctx.client ? ` (cliente ${esc(ctx.client.nome)})` : ""
       }.`,
       ctx.post.id
     ),
@@ -79,8 +89,8 @@ export async function notifyAwaitingApproval(supabase: SupabaseClient, postId: s
     subject: `Post enviado para aprovação — ${ctx.post.titulo}`,
     html: layout(
       "Post aguardando aprovação",
-      `O post <strong>${ctx.post.titulo}</strong>${
-        ctx.client ? ` do cliente ${ctx.client.nome}` : ""
+      `O post <strong>${esc(ctx.post.titulo)}</strong>${
+        ctx.client ? ` do cliente ${esc(ctx.client.nome)}` : ""
       } foi enviado para aprovação.`,
       ctx.post.id
     ),
@@ -96,7 +106,7 @@ export async function notifyClientApproved(supabase: SupabaseClient, postId: str
     subject: `Cliente aprovou — ${ctx.post.titulo}`,
     html: layout(
       "Conteúdo aprovado pelo cliente",
-      `O cliente aprovou o post <strong>${ctx.post.titulo}</strong>. Pode seguir para publicação.`,
+      `O cliente aprovou o post <strong>${esc(ctx.post.titulo)}</strong>. Pode seguir para publicação.`,
       ctx.post.id
     ),
   });
@@ -115,9 +125,9 @@ export async function notifyClientRequestedChanges(
     subject: `Cliente solicitou ajuste — ${ctx.post.titulo}`,
     html: layout(
       "Cliente solicitou ajuste",
-      `O cliente pediu ajustes no post <strong>${ctx.post.titulo}</strong>:<br><br>
+      `O cliente pediu ajustes no post <strong>${esc(ctx.post.titulo)}</strong>:<br><br>
        <em style="display:block;background:#fff7ed;border-left:3px solid #f59e0b;padding:10px 12px;color:#92400e">
-       ${comment.replace(/</g, "&lt;")}</em>`,
+       ${esc(comment)}</em>`,
       ctx.post.id
     ),
   });
@@ -157,9 +167,9 @@ export async function notifyPautaResponse(supabase: SupabaseClient, pautaId: str
           <h2 style="color:#111;font-size:18px;margin:0 0 12px">
             ${aprovou ? "Pauta aprovada pelo cliente" : "Cliente solicitou ajustes na pauta"}
           </h2>
-          <p>Cliente <strong>${c?.nome ?? ""}</strong> — pauta de <strong>${mesNome}</strong>.</p>
-          ${p.comentario ? `<p><em style="display:block;background:#f8fafc;border-left:3px solid #94a3b8;padding:10px 12px">${p.comentario.replace(/</g, "&lt;")}</em></p>` : ""}
-          ${p.autor_resposta ? `<p style="color:#64748b">Respondido por: ${p.autor_resposta.replace(/</g, "&lt;")}</p>` : ""}
+          <p>Cliente <strong>${esc(c?.nome)}</strong> — pauta de <strong>${mesNome}</strong>.</p>
+          ${p.comentario ? `<p><em style="display:block;background:#f8fafc;border-left:3px solid #94a3b8;padding:10px 12px">${esc(p.comentario)}</em></p>` : ""}
+          ${p.autor_resposta ? `<p style="color:#64748b">Respondido por: ${esc(p.autor_resposta)}</p>` : ""}
           <a href="${link}" style="display:inline-block;margin-top:8px;background:#0A48C4;color:#fff;text-decoration:none;padding:10px 16px;border-radius:8px;font-size:14px">Abrir calendário</a>
         </div>
       </div>`,
@@ -175,7 +185,7 @@ export async function notifyStatusAlterar(supabase: SupabaseClient, postId: stri
     subject: `Post movido para "Alterar" — ${ctx.post.titulo}`,
     html: layout(
       'Post movido para "Alterar"',
-      `O post <strong>${ctx.post.titulo}</strong> foi movido para o status <strong>Alterar</strong> e precisa de ajustes.`,
+      `O post <strong>${esc(ctx.post.titulo)}</strong> foi movido para o status <strong>Alterar</strong> e precisa de ajustes.`,
       ctx.post.id
     ),
   });

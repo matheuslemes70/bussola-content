@@ -2,10 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth";
 import type { UserRole } from "@/lib/types";
 
-// As policies de RLS garantem que só admin consegue alterar.
+// O RLS já restringe a admin; aqui rejeitamos cedo (defesa em profundidade).
 export async function updateUser(id: string, formData: FormData) {
+  const auth = await requireRole(["admin"]);
+  if ("error" in auth) return { error: auth.error };
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -24,6 +27,8 @@ export async function updateUser(id: string, formData: FormData) {
 }
 
 export async function toggleUserAtivo(id: string, ativo: boolean) {
+  const auth = await requireRole(["admin"]);
+  if ("error" in auth) return { error: auth.error };
   const supabase = await createClient();
   const { error } = await supabase.from("users").update({ ativo }).eq("id", id);
   if (error) return { error: error.message };

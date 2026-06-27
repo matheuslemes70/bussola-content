@@ -2,6 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth";
+
+const GESTOR = ["admin", "social_media"] as const;
 
 function parseRedes(raw: string): string[] {
   return raw
@@ -11,6 +14,8 @@ function parseRedes(raw: string): string[] {
 }
 
 export async function createCliente(formData: FormData) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
   const supabase = await createClient();
 
   const nome = String(formData.get("nome") || "").trim();
@@ -39,6 +44,8 @@ export async function createCliente(formData: FormData) {
 }
 
 export async function updateCliente(id: string, formData: FormData) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
   const supabase = await createClient();
 
   const responsavel = String(formData.get("responsavel_id") || "");

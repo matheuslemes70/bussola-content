@@ -4,7 +4,17 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { submitPauta } from "@/app/pauta/[token]/actions";
 import { FORMAT_LABELS, FORMAT_COLORS, formatDate } from "@/lib/status";
-import type { Post } from "@/lib/types";
+import type { PostFormat } from "@/lib/types";
+
+// Apenas os campos que o cliente pode ver (sem briefing interno por padrão,
+// sem reference_link, sem public_token, etc).
+export type PautaPost = {
+  id: string;
+  titulo: string;
+  formato: PostFormat;
+  data_publicacao_planejada: string | null;
+  briefing: string; // só preenchido quando incluir_briefing = true
+};
 
 export function PautaForm({
   token,
@@ -13,7 +23,7 @@ export function PautaForm({
   jaRespondida,
 }: {
   token: string;
-  posts: Post[];
+  posts: PautaPost[];
   incluirBriefing: boolean;
   jaRespondida: boolean;
 }) {

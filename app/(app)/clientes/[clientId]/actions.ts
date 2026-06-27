@@ -2,8 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth";
+
+const GESTOR = ["admin", "social_media"] as const;
 
 export async function updateBrandCore(clientId: string, formData: FormData) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
   const supabase = await createClient();
 
   const payload = {
@@ -32,6 +37,8 @@ export async function sendPautaForApproval(
   mes: number,
   incluirBriefing: boolean
 ) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
   const supabase = await createClient();
 
   const { data: existing } = await supabase
@@ -70,6 +77,8 @@ export async function createAccess(
   usuario: string,
   senha: string
 ) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
   const supabase = await createClient();
   const p = plataforma.trim();
   if (!p) return { error: "Plataforma é obrigatória." };
@@ -88,6 +97,8 @@ export async function updateAccess(
   usuario: string,
   senha: string
 ) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
   const supabase = await createClient();
   const p = plataforma.trim();
   if (!p) return { error: "Plataforma é obrigatória." };
@@ -101,6 +112,8 @@ export async function updateAccess(
 }
 
 export async function deleteAccess(clientId: string, accessId: string) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
   const supabase = await createClient();
   const { error } = await supabase.from("client_accesses").delete().eq("id", accessId);
   if (error) return { error: error.message };

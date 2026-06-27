@@ -23,7 +23,7 @@ export async function sendEmail(opts: {
   if (to.length === 0) return;
 
   if (!apiKey) {
-    console.warn(`[email] RESEND_API_KEY ausente — não enviado: "${subject}" → ${to.join(", ")}`);
+    console.warn(`[email] RESEND_API_KEY ausente — não enviado: "${subject}" (${to.length} destinatário(s))`);
     return;
   }
 
