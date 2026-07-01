@@ -8,7 +8,11 @@
       "mcp__Claude_in_Chrome__javascript_tool",
       "mcp__Claude_in_Chrome__navigate",
       "Bash(wsl.exe -d Ubuntu bash -lc 'pgrep -af next-server || echo \"no next-server\"')",
-      "Bash(wsl.exe -d Ubuntu bash -lc 'cd ~/bussola-content && npm run build 2>&1 | tail -20')"
+      "Bash(wsl.exe -d Ubuntu bash -lc 'cd ~/bussola-content && npm run build 2>&1 | tail -20')",
+      "Bash(wsl.exe -d Ubuntu bash -lc 'cd ~/bussola-content && npm run build 2>&1 | tail -18')",
+      "Bash(wsl.exe -d Ubuntu bash -lc 'cd ~/bussola-content && npm run dev')",
+      "Bash(wsl.exe -d Ubuntu bash -lc 'cd ~/bussola-content && node seed_test_delete.mjs')",
+      "Bash(wsl.exe -d Ubuntu bash -lc 'cd ~/bussola-content && rm -f seed_test_delete.mjs && echo \"script removido\"; P=$\\(pgrep -f \"[n]ext-server\"\\); if [ -n \"$P\" ]; then kill \"$P\" && echo \"dev server parado \\(pid $P\\)\"; else echo \"dev server já parado\"; fi')"
     ]
   }
 }

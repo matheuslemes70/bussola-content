@@ -2,12 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth";
 import {
   notifyNewPost,
   notifyAwaitingApproval,
   notifyStatusAlterar,
 } from "@/lib/notifications";
 import type { PostFormat, PostStatus } from "@/lib/types";
+
+const GESTOR = ["admin", "social_media"] as const;
 
 export async function createPost(formData: FormData) {
   const supabase = await createClient();
@@ -118,6 +121,8 @@ export async function updatePostStatus(id: string, status: PostStatus) {
 }
 
 export async function deletePost(id: string) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
   const supabase = await createClient();
   const { data: row } = await supabase.from("posts").select("client_id").eq("id", id).single();
   const { error } = await supabase.from("posts").delete().eq("id", id);
@@ -126,6 +131,19 @@ export async function deletePost(id: string) {
   revalidatePath("/posts");
   revalidatePath("/");
   return { ok: true };
+}
+
+// Exclusão em massa (tela "Todos os posts").
+export async function deletePostsBulk(ids: string[]) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
+  if (!ids.length) return { error: "Nenhum post selecionado." };
+  const supabase = await createClient();
+  const { error } = await supabase.from("posts").delete().in("id", ids);
+  if (error) return { error: error.message };
+  revalidatePath("/posts");
+  revalidatePath("/");
+  return { ok: true, count: ids.length };
 }
 
 // Gera (ou retorna) o token público e move o post para "para_aprovacao"

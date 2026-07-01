@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
-import { canManagePosts } from "@/lib/permissions";
+import { canManagePosts, canDeletePosts } from "@/lib/permissions";
 import {
   STATUS_LABELS,
   FORMAT_LABELS,
@@ -15,6 +15,7 @@ import { PostFormModal } from "@/components/posts/PostFormModal";
 import { ApprovalLink } from "@/components/posts/ApprovalLink";
 import { CopyCaption } from "@/components/posts/CopyCaption";
 import { CopyButton } from "@/components/posts/CopyButton";
+import { DeletePostButton } from "@/components/posts/DeletePostButton";
 import { InternalChat } from "@/components/posts/InternalChat";
 import { Checklist } from "@/components/posts/Checklist";
 import type {
@@ -75,13 +76,18 @@ export default async function PostPage({
           </div>
         </div>
         {pode && (
-          <PostFormModal
-            users={allUsers}
-            fixedClientId={p.client_id}
-            post={p}
-            triggerLabel="Editar"
-            triggerClass="rounded-lg bg-bussola-blue px-4 py-2 text-sm font-medium text-white hover:brightness-110"
-          />
+          <div className="flex flex-shrink-0 gap-2">
+            <PostFormModal
+              users={allUsers}
+              fixedClientId={p.client_id}
+              post={p}
+              triggerLabel="Editar"
+              triggerClass="rounded-lg bg-bussola-blue px-4 py-2 text-sm font-medium text-white hover:brightness-110"
+            />
+            {canDeletePosts(me?.perfil) && (
+              <DeletePostButton postId={p.id} titulo={p.titulo} />
+            )}
+          </div>
         )}
       </div>
 

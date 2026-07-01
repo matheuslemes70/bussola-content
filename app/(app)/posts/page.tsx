@@ -1,11 +1,10 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
-import { canManagePosts } from "@/lib/permissions";
-import { FORMAT_LABELS, formatDate, isAtrasado } from "@/lib/status";
-import { StatusBadge, AtrasadoBadge } from "@/components/ui/Badge";
+import { canManagePosts, canDeletePosts } from "@/lib/permissions";
+import { isAtrasado } from "@/lib/status";
 import { PostFilters } from "@/components/posts/PostFilters";
 import { PostFormModal } from "@/components/posts/PostFormModal";
+import { PostsBulkTable, type PostRow } from "@/components/posts/PostsBulkTable";
 import type { Client, Post, User } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +38,22 @@ export default async function PostsPage({
   if (sp.ate) rows = rows.filter((p) => (p.data_publicacao_planejada ?? "") <= sp.ate!);
   if (sp.atrasados === "1") rows = rows.filter(isAtrasado);
 
+  const rowVMs: PostRow[] = rows.map((p) => {
+    const cli = clientMap.get(p.client_id);
+    const resp = p.responsavel_id ? userMap.get(p.responsavel_id) : null;
+    return {
+      id: p.id,
+      titulo: p.titulo,
+      clientId: cli?.id ?? null,
+      clientNome: cli?.nome ?? null,
+      formato: p.formato,
+      status: p.status,
+      respNome: resp?.nome || resp?.email || null,
+      data: p.data_publicacao_planejada,
+      atrasado: isAtrasado(p),
+    };
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -50,59 +65,7 @@ export default async function PostsPage({
 
       <PostFilters clients={allClients} users={allUsers} />
 
-      <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
-            <tr>
-              <th className="px-4 py-3">Título</th>
-              <th className="hidden px-4 py-3 md:table-cell">Cliente</th>
-              <th className="hidden px-4 py-3 lg:table-cell">Formato</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="hidden px-4 py-3 lg:table-cell">Responsável</th>
-              <th className="px-4 py-3">Data</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
-                  Nenhum post encontrado.
-                </td>
-              </tr>
-            )}
-            {rows.map((p) => {
-              const atrasado = isAtrasado(p);
-              const cli = clientMap.get(p.client_id);
-              const resp = p.responsavel_id ? userMap.get(p.responsavel_id) : null;
-              return (
-                <tr key={p.id} className={atrasado ? "bg-red-50 hover:bg-red-100" : "hover:bg-slate-50"}>
-                  <td className="px-4 py-3 font-medium">
-                    <Link href={`/posts/${p.id}`} className="text-slate-800 hover:text-bussola-blue hover:underline">
-                      {p.titulo}
-                    </Link>
-                  </td>
-                  <td className="hidden px-4 py-3 text-slate-600 md:table-cell">
-                    {cli ? (
-                      <Link href={`/clientes/${cli.id}`} className="hover:underline">{cli.nome}</Link>
-                    ) : "—"}
-                  </td>
-                  <td className="hidden px-4 py-3 text-slate-600 lg:table-cell">{FORMAT_LABELS[p.formato]}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <StatusBadge status={p.status} />
-                      {atrasado && <AtrasadoBadge />}
-                    </div>
-                  </td>
-                  <td className="hidden px-4 py-3 text-slate-600 lg:table-cell">{resp?.nome || resp?.email || "—"}</td>
-                  <td className={`px-4 py-3 ${atrasado ? "font-semibold text-red-600" : "text-slate-600"}`}>
-                    {formatDate(p.data_publicacao_planejada)}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <PostsBulkTable rows={rowVMs} canDelete={canDeletePosts(me?.perfil)} />
     </div>
   );
 }
