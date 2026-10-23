@@ -56,11 +56,19 @@ export function Sidebar({
   user,
   mobileOpen = false,
   onClose,
+  recolhida = false,
+  onAlternar,
 }: {
   user: User;
   mobileOpen?: boolean;
   onClose?: () => void;
+  recolhida?: boolean;
+  onAlternar?: () => void;
 }) {
+  // No computador o menu pode ficar recolhido (só ícones). No celular ele é
+  // sempre a gaveta completa.
+  const r = recolhida;
+  const soAberto = r ? "md:hidden" : "";
   const pathname = usePathname();
   const router = useRouter();
   const [postsExpanded, setPostsExpanded] = useState(pathname.startsWith("/arquivados"));
@@ -106,10 +114,11 @@ export function Sidebar({
         href={item.href}
         onClick={onClose}
         aria-current={ativo ? "page" : undefined}
-        className={`${ITEM_BASE} ${ativo ? ITEM_ON : ITEM_OFF}`}
+        title={r ? item.label : undefined}
+        className={`${ITEM_BASE} ${ativo ? ITEM_ON : ITEM_OFF} ${r ? "md:justify-center md:px-0" : ""}`}
       >
         <NavIcon href={item.href} active={ativo} />
-        <span className="flex-1">{item.label}</span>
+        <span className={`flex-1 ${soAberto}`}>{item.label}</span>
       </Link>
     );
   }
@@ -124,19 +133,21 @@ export function Sidebar({
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 max-w-[80%] transform flex-col bg-ink text-white transition-transform duration-200 md:w-64 md:max-w-none md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 max-w-[80%] transform flex-col bg-ink text-white transition-[transform,width] duration-200 md:max-w-none md:translate-x-0 ${r ? "md:w-20" : "md:w-64"} ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex items-center justify-between px-6 pb-3 pt-6">
-          <Image
-            src="/logo_bussola.png"
-            alt="Bússola Media"
-            width={180}
-            height={60}
-            priority
-            style={{ height: "52px", width: "auto" }}
-          />
+        <div className={`flex items-center justify-between pb-3 pt-6 ${r ? "px-6 md:justify-center md:px-0" : "px-6"}`}>
+          <div className={r ? "md:h-[44px] md:w-[44px] md:overflow-hidden" : ""}>
+            <Image
+              src="/logo_bussola.png"
+              alt="Bússola Media"
+              width={180}
+              height={60}
+              priority
+              style={{ height: r ? "44px" : "52px", width: "auto", maxWidth: "none" }}
+            />
+          </div>
           <button
             onClick={onClose}
             className="flex h-11 w-11 items-center justify-center text-2xl leading-none text-stone-450 hover:text-white md:hidden"
@@ -146,9 +157,9 @@ export function Sidebar({
           </button>
         </div>
 
-        <nav aria-label="Navegação principal" className="scroll-dark flex-1 space-y-5 overflow-y-auto px-4 py-3">
+        <nav aria-label="Navegação principal" className={`scroll-dark flex-1 space-y-5 overflow-y-auto py-3 ${r ? "px-4 md:px-3" : "px-4"}`}>
           <div className="space-y-0.5">
-            <p className="label-mono px-3 pb-2 text-stone-450">Operação</p>
+            <p className={`label-mono px-3 pb-2 text-stone-450 ${soAberto}`}>Operação</p>
             {geralItems.map((item) => {
               if (item.href !== "/posts") {
                 return <div key={item.href}>{renderItem(item)}</div>;
@@ -161,23 +172,24 @@ export function Sidebar({
                       href={item.href}
                       onClick={onClose}
                       aria-current={ativo ? "page" : undefined}
-                      className="flex min-h-[44px] flex-1 items-center gap-3 px-3"
+                      title={r ? item.label : undefined}
+                      className={`flex min-h-[44px] flex-1 items-center gap-3 px-3 ${r ? "md:justify-center md:px-0" : ""}`}
                     >
                       <NavIcon href={item.href} active={ativo} />
-                      <span className="flex-1">{item.label}</span>
+                      <span className={`flex-1 ${soAberto}`}>{item.label}</span>
                     </Link>
                     <button
                       type="button"
                       onClick={() => setPostsExpanded((v) => !v)}
                       aria-label={postsExpanded ? "Recolher arquivados" : "Expandir arquivados"}
-                      className="flex h-11 w-10 items-center justify-center text-stone-450 hover:text-white"
+                      className={`flex h-11 w-10 items-center justify-center text-stone-450 hover:text-white ${soAberto}`}
                     >
                       <svg viewBox="0 0 20 20" fill="currentColor" className={`h-3.5 w-3.5 transition-transform ${postsExpanded ? "rotate-90" : ""}`}>
                         <path d="M7 5l6 5-6 5V5z" />
                       </svg>
                     </button>
                   </div>
-                  {postsExpanded && (
+                  {postsExpanded && !r && (
                     <Link
                       href="/arquivados"
                       onClick={onClose}
@@ -195,18 +207,34 @@ export function Sidebar({
 
           {estrategicoItems.length > 0 && (
             <div>
-              <p className="label-mono px-3 pb-2 text-stone-450">Estratégico</p>
+              <p className={`label-mono px-3 pb-2 text-stone-450 ${soAberto}`}>Estratégico</p>
+              {r && <div className="mx-3 mb-2 hidden border-t border-ink-muted md:block" />}
               <div className="space-y-0.5">{estrategicoItems.map(renderItem)}</div>
             </div>
           )}
         </nav>
 
-        <div className="p-4">
-          <div className="flex items-center gap-3 rounded-2xl bg-ink-soft p-3">
+        <div className={`space-y-2 ${r ? "p-4 md:px-3" : "p-4"}`}>
+          {onAlternar && (
+            <button
+              type="button"
+              onClick={onAlternar}
+              title={r ? "Abrir menu" : "Recolher menu"}
+              aria-label={r ? "Abrir menu" : "Recolher menu"}
+              className={`hidden min-h-[40px] w-full items-center gap-3 rounded-xl px-3 text-[13px] font-medium text-stone-450 transition hover:bg-ink-soft hover:text-white md:flex ${r ? "md:justify-center md:px-0" : ""}`}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={`flex-none transition-transform ${r ? "rotate-180" : ""}`}>
+                <rect x="3" y="4" width="18" height="16" rx="3" />
+                <path d="M9 4v16M15.5 10 13.5 12l2 2" />
+              </svg>
+              <span className={soAberto}>Recolher menu</span>
+            </button>
+          )}
+          <div className={`flex items-center gap-3 rounded-2xl bg-ink-soft p-3 ${r ? "md:flex-col md:gap-2 md:p-2" : ""}`}>
             <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-bussola-yellow text-[15px] font-extrabold text-ink">
               {(user.nome || user.email).charAt(0).toUpperCase()}
             </span>
-            <div className="min-w-0 flex-1">
+            <div className={`min-w-0 flex-1 ${soAberto}`}>
               <p className="truncate text-sm font-semibold text-white">{user.nome || user.email}</p>
               <p className="label-mono mt-0.5 text-[9.5px] text-stone-450">{ROLE_LABELS[user.perfil]}</p>
             </div>

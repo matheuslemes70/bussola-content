@@ -194,7 +194,7 @@ export default async function DashboardPage() {
                 ))}
             </div>
           )}
-          <div className="mt-auto grid grid-cols-4 gap-x-3 gap-y-4 sm:grid-cols-7">
+          <div className="mt-auto grid grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-x-3 gap-y-4">
             {fluxo.map((f) => (
               <Link key={f.label} href={f.href} className="group space-y-1.5 rounded-lg">
                 <span className="block text-[22px] font-bold text-white group-hover:text-bussola-yellow">{f.count}</span>

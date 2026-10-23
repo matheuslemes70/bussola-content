@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { NotificationsBell } from "@/components/NotificationsBell";
@@ -45,13 +45,34 @@ export function AppShell({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [novoPostOpen, setNovoPostOpen] = useState(false);
+  // Menu lateral recolhido (só no computador); lembra a escolha de cada pessoa.
+  const [recolhida, setRecolhida] = useState(false);
+  useEffect(() => {
+    try {
+      setRecolhida(localStorage.getItem("bussola:menu-recolhido") === "1");
+    } catch {}
+  }, []);
+  function alternarMenu() {
+    setRecolhida((v) => {
+      try {
+        localStorage.setItem("bussola:menu-recolhido", v ? "0" : "1");
+      } catch {}
+      return !v;
+    });
+  }
   const pathname = usePathname();
   const pagina = paginaAtual(pathname);
 
   return (
     <div className="flex min-h-screen w-full max-w-full overflow-x-hidden bg-paper">
-      <Sidebar user={user} mobileOpen={menuOpen} onClose={() => setMenuOpen(false)} />
-      <div className="flex min-w-0 max-w-full flex-1 flex-col md:pl-64">
+      <Sidebar
+        user={user}
+        mobileOpen={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        recolhida={recolhida}
+        onAlternar={alternarMenu}
+      />
+      <div className={`flex min-w-0 max-w-full flex-1 flex-col transition-[padding] duration-200 ${recolhida ? "md:pl-20" : "md:pl-64"}`}>
         {/* Barra superior */}
         <header className="sticky top-0 z-30 bg-paper/90 backdrop-blur supports-[backdrop-filter]:bg-paper/75">
           <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-3 px-4 py-3 sm:px-8 sm:py-4">
