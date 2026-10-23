@@ -3,22 +3,25 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { enviarAoCliente, pedirAjuste, marcarPublicado } from "@/app/(app)/posts/actions";
+import { enviarAoCliente, pedirAjuste, marcarPublicado, cobrarExecutor } from "@/app/(app)/posts/actions";
 
 // Botões rápidos da social media na Minha mesa.
 // tipo "revisar": Pedir ajuste / Enviar ao cliente
 // tipo "publicar": Marcar como publicado
 // tipo "cliente": Copiar link de aprovação
+// tipo "risco": Cobrar quem está com o post
 export function AcoesMesa({
   postId,
   tipo,
   token,
   baseUrl,
   semAbrir = false,
+  executorNome,
 }: {
   semAbrir?: boolean;
   postId: string;
-  tipo: "revisar" | "publicar" | "cliente";
+  tipo: "revisar" | "publicar" | "cliente" | "risco";
+  executorNome?: string | null;
   token?: string | null;
   baseUrl?: string;
 }) {
@@ -57,6 +60,15 @@ export function AcoesMesa({
       setAjusteAberto(false);
       setTexto("");
       router.refresh();
+    });
+  }
+
+  function onCobrar() {
+    setErro(null);
+    startTransition(async () => {
+      const res = await cobrarExecutor(postId);
+      if (res && "error" in res && res.error) return setErro(res.error);
+      setMsg(`${executorNome ?? "A pessoa"} recebeu o aviso no sino.`);
     });
   }
 
@@ -132,6 +144,19 @@ export function AcoesMesa({
           >
             {pending ? "Salvando…" : "Marcar como publicado"}
           </button>
+        </div>
+      )}
+
+      {tipo === "risco" && (
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          <Link href={`/posts/${postId}`} className={btnClaro}>
+            Abrir
+          </Link>
+          {executorNome && !msg && (
+            <button type="button" onClick={onCobrar} disabled={pending} className={btnEscuro}>
+              {pending ? "Avisando…" : `Cobrar ${executorNome}`}
+            </button>
+          )}
         </div>
       )}
 

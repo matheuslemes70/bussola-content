@@ -578,3 +578,21 @@ export async function marcarPublicado(id: string) {
   revalidarPost(id, row?.client_id);
   return { ok: true };
 }
+
+// Social media cobra quem está com um post que publica em breve.
+export async function cobrarExecutor(id: string) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
+  const supabase = await createClient();
+  const { data: post } = await supabase
+    .from("posts").select("titulo, responsavel_id, data_publicacao_planejada").eq("id", id).single();
+  if (!post?.responsavel_id) return { error: "Este post não tem executor." };
+  if (post.responsavel_id === auth.user.id) return { error: "Este post está com você." };
+
+  const quem = (auth.user.nome || "A social media").split(" ")[0];
+  const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  const data = post.data_publicacao_planejada?.slice(0, 10);
+  const quando = !data ? "em breve" : data <= hoje ? "hoje" : "amanhã";
+  await notifyUser(supabase, post.responsavel_id, `${quem} está cobrando "${post.titulo}": publica ${quando}.`, id);
+  return { ok: true };
+}

@@ -74,6 +74,18 @@ export default async function MinhaMesaPage() {
     .sort((a, b) => (a.data_publicacao_planejada ?? "9999").localeCompare(b.data_publicacao_planejada ?? "9999"));
   const vencidos = publicar.filter((p) => p.data_publicacao_planejada && p.data_publicacao_planejada < hoje).length;
   const comCliente = todos.filter((p) => escopo(p) && p.status === "para_aprovacao");
+  // Publicação em risco: publica de 3 dias atrás até amanhã e ainda não foi
+  // aprovado pelo cliente. O que publica hoje e ainda está em edição aparece aqui.
+  const ANTES_DE_APROVAR: PostStatus[] = [...PRODUCAO, "revisao_interna", "para_aprovacao"];
+  const amanha = somarDias(hoje, 1);
+  const tresDiasAtras = somarDias(hoje, -3);
+  const emRisco = todos
+    .filter((p) => {
+      const d = p.data_publicacao_planejada?.slice(0, 10);
+      return escopo(p) && !!d && d >= tresDiasAtras && d <= amanha && ANTES_DE_APROVAR.includes(p.status);
+    })
+    .sort((a, b) => (a.data_publicacao_planejada ?? "").localeCompare(b.data_publicacao_planejada ?? ""));
+  const riscoHoje = emRisco.filter((p) => (p.data_publicacao_planejada ?? "").slice(0, 10) <= hoje).length;
   const emAjusteDeOutros = todos.filter((p) => escopo(p) && p.status === "alterar" && p.responsavel_id !== me.id).length;
 
   // Último pedido de ajuste de cada post que voltou pra mim
@@ -129,6 +141,7 @@ export default async function MinhaMesaPage() {
   // ---------- Topo ----------
   const tiles = [
     { id: "atrasados", label: "Atrasados", n: atrasados.length, cor: "ink" },
+    { id: "risco", label: "Publicação em risco", n: emRisco.length, cor: "ink" },
     { id: "revisar", label: "Pra revisar", n: revisar.length, cor: "yellow" },
     { id: "ajustes", label: "Ajustes pedidos", n: ajustes.length + atrasados.filter((p) => p.status === "alterar").length, cor: "yellow" },
     { id: "publicar", label: "Pra publicar", n: publicar.length, cor: "ink" },
@@ -138,6 +151,12 @@ export default async function MinhaMesaPage() {
   ].filter((t) => t.n > 0).slice(0, 4);
 
   const frases: string[] = [];
+  if (emRisco.length)
+    frases.push(
+      riscoHoje
+        ? `${plural(riscoHoje, "post que publica hoje e ainda não está pronto", "posts que publicam hoje e ainda não estão prontos")}`
+        : `${plural(emRisco.length, "post que publica amanhã e ainda não está pronto", "posts que publicam amanhã e ainda não estão prontos")}`
+    );
   if (praHoje.length) frases.push(`${plural(praHoje.length, "entrega", "entregas")} pra hoje`);
   if (revisar.length) frases.push(`${plural(revisar.length, "post", "posts")} pra revisar`);
   const nAjustes = ajustes.length + atrasados.filter((p) => p.status === "alterar").length;
@@ -267,6 +286,42 @@ export default async function MinhaMesaPage() {
               {atrasados.map((p) => (
                 <LinhaExecutor key={p.id} p={p} acao={p.status === "alterar" ? "Abrir e ajustar" : "Abrir"} />
               ))}
+            </Secao>
+          )}
+
+          {emRisco.length > 0 && (
+            <Secao id="risco" titulo="Publicação em risco" sub="Publica até amanhã e ainda não foi aprovado" subCor="text-[#9A2A12]">
+              {emRisco.map((p) => {
+                const d = (p.data_publicacao_planejada ?? "").slice(0, 10);
+                const quando = d < hoje ? `Venceu ${ddmm(d)}` : d === hoje ? "Publica hoje" : "Publica amanhã";
+                const exec = p.responsavel_id ? userMap.get(p.responsavel_id) : null;
+                const execNome = exec ? (exec.nome || exec.email).split(" ")[0] : null;
+                const comVoce = p.responsavel_id === me.id || ["revisao_interna"].includes(p.status);
+                const onde =
+                  p.status === "revisao_interna"
+                    ? "Está com você, pra revisar"
+                    : p.status === "para_aprovacao"
+                    ? "Com o cliente, esperando aprovação"
+                    : `${STATUS_LABELS[p.status]}${execNome ? ` · com ${p.responsavel_id === me.id ? "você" : execNome}` : ""}`;
+                return (
+                  <article key={p.id} className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-[20px] bg-[#FBFAF7] px-[18px] py-4">
+                    <span className={`flex h-12 min-w-[88px] flex-none items-center justify-center rounded-[14px] px-2 text-center text-[12px] font-extrabold leading-tight ${d <= hoje ? "bg-ink text-bussola-yellow" : "bg-sand text-ink"}`}>
+                      {quando}
+                    </span>
+                    <div className="min-w-0 flex-[1_1_220px] space-y-1">
+                      <p className="text-base font-semibold">{p.titulo}</p>
+                      <p className="text-[13px] text-stone-550">
+                        {clientMap.get(p.client_id)?.nome} · {FORMAT_LABELS[p.formato]} · <span className="font-semibold text-[#4A463F]">{onde}</span>
+                      </p>
+                    </div>
+                    <AcoesMesa
+                      postId={p.id}
+                      tipo="risco"
+                      executorNome={comVoce || p.status === "para_aprovacao" ? null : execNome}
+                    />
+                  </article>
+                );
+              })}
             </Secao>
           )}
 
