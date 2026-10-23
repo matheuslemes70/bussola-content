@@ -123,7 +123,7 @@ export function Sidebar({
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex items-center justify-between px-6 pb-4 pt-7">
+        <div className="flex items-center justify-between px-6 pb-3 pt-6">
           <Image
             src="/logo_bussola.png"
             alt="Bússola Media"
@@ -141,7 +141,7 @@ export function Sidebar({
           </button>
         </div>
 
-        <nav aria-label="Navegação principal" className="flex-1 space-y-6 overflow-y-auto px-4 py-4">
+        <nav aria-label="Navegação principal" className="scroll-dark flex-1 space-y-5 overflow-y-auto px-4 py-3">
           <div className="space-y-0.5">
             <p className="label-mono px-3 pb-2 text-stone-450">Operação</p>
             {geralItems.map((item) => {

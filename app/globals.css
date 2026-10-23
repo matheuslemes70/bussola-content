@@ -31,4 +31,26 @@ video {
   .label-mono {
     @apply font-mono text-[10.5px] font-semibold uppercase tracking-[0.12em];
   }
+
+  /* Rolagem discreta para fundos escuros (barra lateral) */
+  .scroll-dark {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  .scroll-dark:hover {
+    scrollbar-color: #3A3733 transparent;
+  }
+  .scroll-dark::-webkit-scrollbar {
+    width: 6px;
+  }
+  .scroll-dark::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scroll-dark::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 999px;
+  }
+  .scroll-dark:hover::-webkit-scrollbar-thumb {
+    background: #3A3733;
+  }
 }

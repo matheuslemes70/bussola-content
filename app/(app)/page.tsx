@@ -192,25 +192,25 @@ export default async function DashboardPage() {
       </section>
 
       {/* No feed + mais atrasados */}
-      <section className="grid gap-4 lg:grid-cols-3">
+      <section className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
         <article className="flex flex-col gap-5 rounded-4xl bg-sand p-6">
-          <div className="flex items-baseline justify-between">
+          <div className="space-y-1">
             <h2 className="text-[17px] font-bold">No feed</h2>
-            <span className="label-mono text-stone-550">Este mês</span>
+            <span className="label-mono block text-stone-550">Este mês</span>
           </div>
-          <div className="flex flex-wrap gap-8">
-            <Link href="/posts?status=publicado" className="space-y-1.5">
+          <div className="flex flex-wrap gap-x-8 gap-y-5 lg:flex-col lg:divide-y lg:divide-sand-line">
+            <Link href="/posts?status=publicado" className="space-y-1.5 hover:opacity-80">
               <span className="block text-[44px] font-extrabold leading-none tracking-[-0.04em]">{publicadosMes}</span>
               <span className="label-mono block text-stone-550">Publicados</span>
             </Link>
-            <Link href="/posts?status=aprovado" className="space-y-1.5">
+            <Link href="/posts?status=aprovado" className="space-y-1.5 hover:opacity-80 lg:pt-5">
               <span className="block text-[44px] font-extrabold leading-none tracking-[-0.04em]">{aprovados}</span>
               <span className="label-mono block text-stone-550">Prontos pra postar</span>
             </Link>
           </div>
         </article>
 
-        <article className="flex flex-col gap-3 rounded-4xl bg-sand p-6 lg:col-span-2">
+        <article className="flex flex-col gap-3 rounded-4xl bg-sand p-6">
           <div className="flex items-baseline justify-between">
             <h2 className="text-[17px] font-bold">Mais atrasados</h2>
             <Link href="/posts?atrasados=1" className="label-mono text-ink underline-offset-4 hover:underline">
