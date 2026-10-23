@@ -7,6 +7,7 @@ import {
   notifyNewPost,
   notifyAwaitingApproval,
   notifyStatusAlterar,
+  notifyEntregue,
 } from "@/lib/notifications";
 import type { PostFormat, PostStatus } from "@/lib/types";
 import { notifyUser, detectarMencoes } from "@/lib/notify";
@@ -120,6 +121,7 @@ export async function updatePost(id: string, formData: FormData) {
 if (anterior && anterior.status !== novoStatus) {
     if (novoStatus === "para_aprovacao") await notifyAwaitingApproval(supabase, id);
     else if (novoStatus === "alterar") await notifyStatusAlterar(supabase, id);
+    else if (novoStatus === "revisao_interna") await notifyEntregue(supabase, id);
   }
 
   revalidatePath(`/posts/${id}`);
@@ -147,6 +149,7 @@ export async function updatePostStatus(id: string, status: PostStatus) {
   if (anterior && anterior.status !== status) {
     if (status === "para_aprovacao") await notifyAwaitingApproval(supabase, id);
     else if (status === "alterar") await notifyStatusAlterar(supabase, id);
+    else if (status === "revisao_interna") await notifyEntregue(supabase, id);
   }
 
   revalidatePath(`/clientes/${row.client_id}`);
@@ -439,7 +442,7 @@ export async function updatePostPerson(id: string, novoExecutorId: string) {
     .single();
   if (!atual) return { error: "Post não encontrado." };
 
-  const statusFinal = ["para_aprovacao", "aprovado", "publicado"];
+  const statusFinal = ["revisao_interna", "para_aprovacao", "aprovado", "publicado"];
   const payload: { responsavel_id: string; status?: string } = {
     responsavel_id: novoExecutorId,
   };
@@ -491,5 +494,87 @@ export async function unarchivePost(id: string) {
   revalidatePath("/");
   revalidatePath("/posts");
   if (row?.client_id) revalidatePath(`/clientes/${row.client_id}`);
+  return { ok: true };
+}
+
+// ---------- Ações rápidas do fluxo (Minha mesa e página do post) ----------
+
+function revalidarPost(id: string, clientId?: string | null) {
+  revalidatePath(`/posts/${id}`);
+  if (clientId) revalidatePath(`/clientes/${clientId}`);
+  revalidatePath("/posts");
+  revalidatePath("/painel");
+  revalidatePath("/");
+}
+
+// Executor entrega: grava o link e manda para a revisão interna.
+export async function entregarPost(id: string, link: string) {
+  const auth = await requireRole();
+  if ("error" in auth) return { error: auth.error };
+  const supabase = await createClient();
+
+  const { data: post } = await supabase
+    .from("posts").select("responsavel_id, client_id, delivered_link").eq("id", id).single();
+  if (!post) return { error: "Post não encontrado." };
+
+  const ehGestao = (GESTOR as readonly string[]).includes(auth.user.perfil);
+  if (post.responsavel_id !== auth.user.id && !ehGestao) {
+    return { error: "Só o executor deste post pode entregar." };
+  }
+
+  const linkFinal = link.trim() || post.delivered_link || "";
+  if (!linkFinal) return { error: "Cole o link da entrega antes de enviar." };
+
+  const { error } = await supabase
+    .from("posts")
+    .update({ delivered_link: linkFinal, status: "revisao_interna" })
+    .eq("id", id);
+  if (error) return { error: error.message };
+
+  await notifyEntregue(supabase, id);
+  revalidarPost(id, post.client_id);
+  return { ok: true };
+}
+
+// Revisão aprovada: gera o link de aprovação e manda para o cliente.
+export async function enviarAoCliente(id: string) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
+  return sendForApproval(id);
+}
+
+// Revisão (ou qualquer etapa) volta para o executor com o pedido escrito.
+export async function pedirAjuste(id: string, texto: string) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
+  const pedido = texto.trim();
+  if (!pedido) return { error: "Escreva o que precisa ser ajustado." };
+  const supabase = await createClient();
+
+  await supabase.from("comments").insert({
+    post_id: id,
+    author_id: auth.user.id,
+    texto: `Ajuste pedido: ${pedido}`,
+    tipo: "interno",
+  });
+
+  const { data: row, error } = await supabase
+    .from("posts").update({ status: "alterar" }).eq("id", id).select("client_id").single();
+  if (error) return { error: error.message };
+
+  await notifyStatusAlterar(supabase, id);
+  revalidarPost(id, row?.client_id);
+  return { ok: true };
+}
+
+// Social media confirma que foi ao ar.
+export async function marcarPublicado(id: string) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
+  const supabase = await createClient();
+  const { data: row, error } = await supabase
+    .from("posts").update({ status: "publicado" }).eq("id", id).select("client_id").single();
+  if (error) return { error: error.message };
+  revalidarPost(id, row?.client_id);
   return { ok: true };
 }

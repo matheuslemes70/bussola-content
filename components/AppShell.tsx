@@ -10,7 +10,8 @@ import type { Client, User } from "@/lib/types";
 
 // Nome da seção e da página para o "caminho" no topo
 const PAGINAS: { prefix: string; secao: string; titulo: string; exact?: boolean }[] = [
-  { prefix: "/", secao: "Operação", titulo: "Visão geral", exact: true },
+  { prefix: "/", secao: "Operação", titulo: "Minha mesa", exact: true },
+  { prefix: "/painel", secao: "Operação", titulo: "Visão geral" },
   { prefix: "/clientes", secao: "Operação", titulo: "Clientes" },
   { prefix: "/posts", secao: "Operação", titulo: "Posts" },
   { prefix: "/arquivados", secao: "Operação", titulo: "Arquivados" },

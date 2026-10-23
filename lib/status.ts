@@ -16,7 +16,8 @@ export const STATUS_LABELS: Record<PostStatus, string> = {
   a_produzir: "A produzir",
   em_producao: "Em produção",
   pronto_pra_editar: "Pronto pra editar",
-  para_aprovacao: "Para aprovação",
+  revisao_interna: "Revisão interna",
+  para_aprovacao: "Com o cliente",
   alterar: "Alterar",
   aprovado: "Aprovado",
   publicado: "Publicado",
@@ -47,6 +48,7 @@ export const STATUS_FLOW: PostStatus[] = [
   "a_produzir",
   "em_producao",
   "pronto_pra_editar",
+  "revisao_interna",
   "para_aprovacao",
   "alterar",
   "aprovado",
@@ -58,6 +60,7 @@ export const KANBAN_COLUMN_ORDER: PostStatus[] = [
   "a_produzir",
   "pronto_pra_editar",
   "em_producao",
+  "revisao_interna",
   "para_aprovacao",
   "alterar",
   "aprovado",
@@ -69,6 +72,7 @@ export const STATUS_COLORS: Record<PostStatus, string> = {
   a_produzir: "bg-slate-100 text-slate-700",
   em_producao: "bg-cyan-200 text-cyan-800",
   pronto_pra_editar: "bg-purple-200 text-purple-800",
+  revisao_interna: "bg-sky-100 text-sky-800",
   para_aprovacao: "bg-amber-100 text-amber-700",
   alterar: "bg-orange-100 text-orange-700",
   aprovado: "bg-emerald-100 text-emerald-700",
@@ -87,7 +91,7 @@ export function isAFazer(post: Pick<Post, "status">): boolean {
 // Etapas em que o executor ainda esta trabalhando (atraso conta pela data de entrega).
 const EM_PRODUCAO_STATUS: PostStatus[] = ["a_produzir", "pronto_pra_editar", "em_producao", "alterar"];
 // Etapas em que ja foi entregue e so falta publicar (atraso conta pela data de publicacao).
-const AGUARDANDO_PUBLICACAO_STATUS: PostStatus[] = ["para_aprovacao", "aprovado"];
+const AGUARDANDO_PUBLICACAO_STATUS: PostStatus[] = ["revisao_interna", "para_aprovacao", "aprovado"];
 
 // "Hoje" sempre no horário de Brasília (o servidor roda em UTC; sem isso,
 // às 21h um post com entrega para hoje já virava "atrasado").

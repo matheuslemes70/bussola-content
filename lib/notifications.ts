@@ -94,6 +94,19 @@ async function avisarNoSino(
   }
 }
 
+// Executor entregou: avisa o dono da demanda e a social media do cliente.
+export async function notifyEntregue(supabase: SupabaseClient, postId: string) {
+  const ctx = await loadCtx(supabase, postId);
+  if (!ctx) return;
+  const quem = (ctx.responsavel?.nome || "A equipe").split(" ")[0];
+  await avisarNoSino(
+    supabase,
+    [ctx.post.dono_id, ctx.gestor?.id],
+    `${quem} entregou "${ctx.post.titulo}" para revisão.`,
+    ctx.post.id
+  );
+}
+
 export async function notifyNewPost(supabase: SupabaseClient, postId: string) {
   const ctx = await loadCtx(supabase, postId);
   if (!ctx) return;

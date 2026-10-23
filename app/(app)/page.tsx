@@ -1,316 +1,424 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
-import { canViewAdminPanels, canViewDataPublicacao } from "@/lib/permissions";
-import { isAtrasado, isAFazer, publicadoEsteMes, FORMAT_LABELS } from "@/lib/status";
-import { PersonKanban } from "@/components/kanban/PersonKanban";
-import type { Post, Client, User } from "@/lib/types";
+import { canCreatePosts } from "@/lib/permissions";
+import { FORMAT_LABELS, STATUS_LABELS, isAtrasado, hojeBrasilia } from "@/lib/status";
+import { AcoesMesa } from "@/components/mesa/AcoesMesa";
+import type { Client, Comment, Post, PostStatus, User } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+// Minha mesa: a tela inicial de cada pessoa, montada pelo que está com ela.
+// - Como executor: atrasados, ajustes pedidos, pra hoje, próximos 7 dias.
+// - Como dona de demanda / responsável pelo cliente (gestão): pra revisar,
+//   pra publicar, com o cliente e meus clientes.
+// Um bloco só aparece quando tem alguma coisa nele.
+
+const PRODUCAO: PostStatus[] = ["a_produzir", "em_producao", "pronto_pra_editar", "alterar"];
+const DIA_MS = 24 * 60 * 60 * 1000;
+
+function somarDias(iso: string, n: number) {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function diasEntre(deIso: string, ateIso: string) {
+  return Math.round(
+    (new Date(ateIso.slice(0, 10) + "T00:00:00").getTime() - new Date(deIso.slice(0, 10) + "T00:00:00").getTime()) / DIA_MS
+  );
+}
+const ddmm = (d: string | null) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : "sem data");
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+
+export default async function MinhaMesaPage() {
   const supabase = await createClient();
   const me = await getCurrentUser();
+  if (!me) return null;
 
   const [{ data: posts }, { data: clients }, { data: users }] = await Promise.all([
     supabase.from("posts").select("*").eq("arquivado", false),
     supabase.from("clients").select("*").order("nome"),
-    supabase.from("users").select("*").eq("ativo", true).order("nome"),
+    supabase.from("users").select("*").eq("ativo", true),
   ]);
 
-  const allClients = (clients as Client[]) ?? [];
-  const allUsers = (users as User[]) ?? [];
+  const ativos = ((clients as Client[]) ?? []).filter((c) => c.status === "ativo");
+  const clientMap = new Map(ativos.map((c) => [c.id, c]));
+  const userMap = new Map(((users as User[]) ?? []).map((u) => [u.id, u]));
+  const todos = ((posts as Post[]) ?? []).filter((p) => clientMap.has(p.client_id));
+  const hoje = hojeBrasilia();
+  const daquiSete = somarDias(hoje, 7);
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
 
-  // Clientes pausados ficam ocultos do dashboard (cards, kanban e resumo).
-  const activeClients = allClients.filter((c) => c.status === "ativo");
-  const activeIds = new Set(activeClients.map((c) => c.id));
-  const allPosts = ((posts as Post[]) ?? []).filter((p) => activeIds.has(p.client_id));
+  // ---------- Como executor ----------
+  const meusExec = todos.filter((p) => p.responsavel_id === me.id && PRODUCAO.includes(p.status));
+  const atrasados = meusExec.filter(isAtrasado).sort((a, b) => (a.data_entrega ?? "").localeCompare(b.data_entrega ?? ""));
+  const idsAtrasados = new Set(atrasados.map((p) => p.id));
+  const ajustes = meusExec.filter((p) => p.status === "alterar" && !idsAtrasados.has(p.id));
+  const praHoje = meusExec
+    .filter((p) => !idsAtrasados.has(p.id) && p.status !== "alterar" && p.data_entrega === hoje)
+    .sort((a, b) => (a.horario_publicacao_planejada ?? "23:59").localeCompare(b.horario_publicacao_planejada ?? "23:59"));
+  const semana = meusExec
+    .filter((p) => p.status !== "alterar" && p.data_entrega && p.data_entrega > hoje && p.data_entrega <= daquiSete)
+    .sort((a, b) => (a.data_entrega ?? "").localeCompare(b.data_entrega ?? ""));
+  const semData = meusExec.filter((p) => !p.data_entrega && p.status !== "alterar").length;
 
-  const hojeBrasilia = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date()); // YYYY-MM-DD
-  const aProduzir = allPosts.filter((p) => p.status === "a_produzir").length;
-  const prontoParaEditarHoje = allPosts.filter(
-    (p) => p.status === "pronto_pra_editar" && p.data_entrega === hojeBrasilia
-  ).length;
-  const prontoParaEditar = allPosts.filter((p) => p.status === "pronto_pra_editar").length;
-  const aguardando = allPosts.filter((p) => p.status === "para_aprovacao").length;
-  const ajuste = allPosts.filter((p) => p.status === "alterar").length;
-  const aprovados = allPosts.filter((p) => p.status === "aprovado").length;
-  const atrasados = allPosts.filter(isAtrasado).length;
-  const meusAtrasados = allPosts.filter(
-    (p) => isAtrasado(p) && (p.responsavel_id === me?.id || p.dono_id === me?.id)
-  ).length;
+  // ---------- Como gestão do conteúdo ----------
+  const gestao = canCreatePosts(me.perfil);
+  const meusClientes = gestao ? ativos.filter((c) => c.responsavel_id === me.id) : [];
+  const idsMeusClientes = new Set(meusClientes.map((c) => c.id));
+  const escopo = (p: Post) => gestao && (p.dono_id === me.id || idsMeusClientes.has(p.client_id));
 
-  const hora = Number(
-    new Intl.DateTimeFormat("pt-BR", { hour: "numeric", hour12: false, timeZone: "America/Sao_Paulo" }).format(new Date())
-  );
+  const revisar = todos.filter((p) => escopo(p) && p.status === "revisao_interna")
+    .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
+  const publicar = todos.filter((p) => escopo(p) && p.status === "aprovado")
+    .sort((a, b) => (a.data_publicacao_planejada ?? "9999").localeCompare(b.data_publicacao_planejada ?? "9999"));
+  const vencidos = publicar.filter((p) => p.data_publicacao_planejada && p.data_publicacao_planejada < hoje).length;
+  const comCliente = todos.filter((p) => escopo(p) && p.status === "para_aprovacao");
+  const emAjusteDeOutros = todos.filter((p) => escopo(p) && p.status === "alterar" && p.responsavel_id !== me.id).length;
+
+  // Último pedido de ajuste de cada post que voltou pra mim
+  const voltaram = [...atrasados, ...ajustes].filter((p) => p.status === "alterar").map((p) => p.id);
+  const pedidos = new Map<string, { quem: string; texto: string }>();
+  if (voltaram.length > 0) {
+    const { data: coms } = await supabase
+      .from("comments")
+      .select("*")
+      .in("post_id", voltaram)
+      .order("created_at", { ascending: false });
+    for (const c of (coms as Comment[]) ?? []) {
+      if (pedidos.has(c.post_id)) continue;
+      const autor = c.tipo === "cliente"
+        ? c.author_name || "Cliente"
+        : (c.author_id ? userMap.get(c.author_id)?.nome?.split(" ")[0] : null) || "Equipe";
+      pedidos.set(c.post_id, { quem: autor, texto: c.texto.replace(/^Ajuste pedido:\s*/, "") });
+    }
+  }
+
+  // Há quantos dias cada post está com o cliente
+  const desde = new Map<string, string>();
+  if (comCliente.length > 0) {
+    const { data: hist } = await supabase
+      .from("post_status_history")
+      .select("post_id, created_at")
+      .in("post_id", comCliente.map((p) => p.id))
+      .eq("status", "para_aprovacao")
+      .order("created_at", { ascending: false });
+    for (const h of hist ?? []) if (!desde.has(h.post_id)) desde.set(h.post_id, h.created_at);
+  }
+  const comClienteOrdenado = comCliente
+    .map((p) => ({ post: p, dias: diasEntre((desde.get(p.id) ?? p.updated_at).slice(0, 10), hoje) }))
+    .sort((a, b) => b.dias - a.dias);
+
+  // Meus clientes
+  const resumoClientes = meusClientes.map((c) => {
+    const cp = todos.filter((p) => p.client_id === c.id);
+    const prod = cp.filter((p) => PRODUCAO.includes(p.status)).length;
+    const rev = cp.filter((p) => p.status === "revisao_interna").length;
+    const cli = cp.filter((p) => p.status === "para_aprovacao").length;
+    const alerta = cp.some(
+      (p) => isAtrasado(p) || (p.status === "aprovado" && !!p.data_publicacao_planejada && p.data_publicacao_planejada < hoje)
+    );
+    const partes = [
+      prod ? `${prod} em produção` : null,
+      rev ? `${rev} pra revisar` : null,
+      cli ? `${cli} com o cliente` : null,
+    ].filter(Boolean);
+    return { client: c, resumo: partes.length ? partes.join(" · ") : "Nada pendente", alerta };
+  });
+
+  // ---------- Topo ----------
+  const tiles = [
+    { id: "atrasados", label: "Atrasados", n: atrasados.length, cor: "ink" },
+    { id: "revisar", label: "Pra revisar", n: revisar.length, cor: "yellow" },
+    { id: "ajustes", label: "Ajustes pedidos", n: ajustes.length + atrasados.filter((p) => p.status === "alterar").length, cor: "yellow" },
+    { id: "publicar", label: "Pra publicar", n: publicar.length, cor: "ink" },
+    { id: "hoje", label: "Pra hoje", n: praHoje.length, cor: "sand" },
+    { id: "cliente", label: "Com o cliente", n: comCliente.length, cor: "sand" },
+    { id: "semana", label: "Próximos 7 dias", n: semana.length, cor: "sand" },
+  ].filter((t) => t.n > 0).slice(0, 4);
+
+  const frases: string[] = [];
+  if (praHoje.length) frases.push(`${plural(praHoje.length, "entrega", "entregas")} pra hoje`);
+  if (revisar.length) frases.push(`${plural(revisar.length, "post", "posts")} pra revisar`);
+  const nAjustes = ajustes.length + atrasados.filter((p) => p.status === "alterar").length;
+  if (nAjustes) frases.push(`${plural(nAjustes, "ajuste pedido", "ajustes pedidos")}`);
+  if (vencidos) frases.push(`${plural(vencidos, "aprovado", "aprovados")} com a publicação vencida`);
+  const juntar = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} e ${xs[xs.length - 1]}`);
+  const mensagem = frases.length
+    ? `Você tem ${juntar(frases)}.${atrasados.length ? " Comece pelos atrasados." : ""}`
+    : atrasados.length
+    ? "Comece pelos atrasados."
+    : "Nada pendente com você agora. Bom trabalho!";
+
+  const hora = Number(new Intl.DateTimeFormat("pt-BR", { hour: "numeric", hour12: false, timeZone: "America/Sao_Paulo" }).format(new Date()));
   const saudacao = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
-  const primeiroNome = (me?.nome || "").split(" ")[0] || "";
-  const isGestorOuAdmin = canViewAdminPanels(me?.perfil);
-  const mensagem =
-    isGestorOuAdmin && atrasados > 0
-      ? `A fila tem ${atrasados} post${atrasados > 1 ? "s" : ""} fora do prazo${aguardando > 0 ? ` e ${aguardando} esperando aprovação do cliente` : ""}. Hoje é dia de destravar o que já está pronto.`
-      : !isGestorOuAdmin && meusAtrasados > 0
-      ? `Você tem ${meusAtrasados} post${meusAtrasados > 1 ? "s" : ""} atrasado${meusAtrasados > 1 ? "s" : ""} que merece${meusAtrasados > 1 ? "m" : ""} atenção hoje.`
-      : allPosts.length > 0
-      ? "Tudo em ordem por aqui — bom trabalho!"
-      : "Aqui está a visão geral das suas demandas.";
-  const publicadosMes = allPosts.filter(publicadoEsteMes).length;
+  const primeiroNome = (me.nome || "").split(" ")[0];
+  const dataHoje = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long", timeZone: "America/Sao_Paulo" }).format(new Date());
 
-  // ---------- Fluxo de produção (barra segmentada) ----------
-  const emProducao = allPosts.filter((p) => p.status === "em_producao").length;
-  const fluxo = [
-    { label: "A produzir", count: aProduzir, href: "/posts?status=a_produzir", cor: "#8A8478" },
-    { label: "Em produção", count: emProducao, href: "/posts?status=em_producao", cor: "#3FB6C9" },
-    { label: "Pra editar", count: prontoParaEditar, href: "/posts?status=pronto_pra_editar", cor: "#5B83F5" },
-    { label: "Aprovação", count: aguardando, href: "/posts?status=para_aprovacao", cor: "#F9B800" },
-    { label: "Ajuste", count: ajuste, href: "/posts?status=alterar", cor: "#EE7A4E" },
-    { label: "Aprovados", count: aprovados, href: "/posts?status=aprovado", cor: "#E8E3D8" },
-  ];
-  const totalFluxo = fluxo.reduce((acc, f) => acc + f.count, 0);
+  const temColunaLateral = semana.length > 0 || semData > 0 || resumoClientes.length > 0;
+  const nada = tiles.length === 0 && comCliente.length === 0 && resumoClientes.length === 0;
 
-  // ---------- Mais atrasados ----------
-  // A data que conta é a de entrega (em produção) ou a de publicação (aguardando
-  // publicar). Quem não pode ver a data de publicação só vê atrasos de entrega.
-  const podeVerPublicacao = canViewDataPublicacao(me?.perfil);
-  const userMap = new Map(allUsers.map((u) => [u.id, u]));
-  const clientMap = new Map(activeClients.map((c) => [c.id, c]));
-  const DIA_MS = 24 * 60 * 60 * 1000;
-  const hojeMs = new Date(hojeBrasilia + "T00:00:00").getTime();
-  const maisAtrasados = allPosts
-    .filter(isAtrasado)
-    .map((p) => {
-      const deEntrega = ["a_produzir", "em_producao", "pronto_pra_editar", "alterar"].includes(p.status);
-      const data = deEntrega ? p.data_entrega : p.data_publicacao_planejada;
-      return { post: p, data, deEntrega };
-    })
-    .filter((x) => x.data && (x.deEntrega || podeVerPublicacao))
-    .map((x) => ({
-      ...x,
-      dias: Math.max(1, Math.round((hojeMs - new Date(x.data + "T00:00:00").getTime()) / DIA_MS)),
-    }))
-    .sort((a, b) => b.dias - a.dias)
-    .slice(0, 3);
-  const maisAntigo = maisAtrasados[0];
+  // Linha de post como executor
+  function LinhaExecutor({ p, acao }: { p: Post; acao: string }) {
+    const atrasado = idsAtrasados.has(p.id);
+    const pedido = pedidos.get(p.id);
+    const dias = atrasado && p.data_entrega ? diasEntre(p.data_entrega, hoje) : 0;
+    const ehHoje = p.data_entrega === hoje;
+    const tag =
+      p.status === "alterar"
+        ? { t: "Ajuste pedido", c: "bg-[#FCEBB6] text-[#5C4300]" }
+        : { t: STATUS_LABELS[p.status], c: "bg-[#ECE7DC] text-[#4A463F]" };
+    return (
+      <article className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-[20px] bg-[#FBFAF7] px-[18px] py-4">
+        <div className="min-w-0 flex-[1_1_260px] space-y-1">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="label-mono text-[9.5px] text-stone-550">{FORMAT_LABELS[p.formato]}</span>
+            <span className={`label-mono rounded-full px-2 py-[3px] text-[9.5px] ${atrasado && p.status === "alterar" ? "bg-[#F6DDD3] text-[#8F2410]" : tag.c}`}>{tag.t}</span>
+          </div>
+          <p className="text-base font-semibold">{p.titulo}</p>
+          <p className="text-[13px] text-stone-550">{clientMap.get(p.client_id)?.nome}</p>
+          {pedido && (
+            <p className="mt-2 rounded-xl bg-paper px-3 py-2.5 text-[13.5px] leading-relaxed text-[#4A463F]">
+              <strong className="text-ink">{pedido.quem}:</strong> {pedido.texto.length > 220 ? pedido.texto.slice(0, 220) + "…" : pedido.texto}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <span className={`text-[13px] font-semibold ${atrasado ? "text-[#9A2A12]" : "text-[#4A463F]"}`}>
+            {atrasado
+              ? `Entrega ${ddmm(p.data_entrega)} · ${plural(dias, "dia", "dias")}`
+              : ehHoje
+              ? `Hoje${p.horario_publicacao_planejada ? ` · ${p.horario_publicacao_planejada.slice(0, 5)}` : ""}`
+              : `Entrega ${ddmm(p.data_entrega)}`}
+          </span>
+          <Link
+            href={`/posts/${p.id}`}
+            className="flex h-10 items-center gap-2 rounded-full bg-ink px-4 text-[13.5px] font-semibold text-white transition hover:bg-ink-muted"
+          >
+            {acao}
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </Link>
+        </div>
+      </article>
+    );
+  }
 
-  const dataHoje = new Intl.DateTimeFormat("pt-BR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    timeZone: "America/Sao_Paulo",
-  }).format(new Date());
+  function Secao({ id, titulo, sub, subCor, children }: { id: string; titulo: string; sub: string; subCor?: string; children: React.ReactNode }) {
+    return (
+      <section id={id} className="scroll-mt-24 space-y-2.5">
+        <div className="flex flex-wrap items-baseline gap-3">
+          <h2 className="text-xl font-bold tracking-[-0.01em]">{titulo}</h2>
+          <span className={`label-mono ${subCor ?? "text-stone-550"}`}>{sub}</span>
+        </div>
+        {children}
+      </section>
+    );
+  }
 
-  const ddmm = (d: string | null) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : "—");
-  const plural = (n: number, um: string, varios: string) => (n === 1 ? um : varios);
+  const corTile: Record<string, string> = {
+    ink: "bg-ink text-white",
+    yellow: "bg-bussola-yellow text-ink",
+    sand: "bg-sand text-ink",
+  };
+  const corTileLabel: Record<string, string> = {
+    ink: "text-[#9A9488]",
+    yellow: "text-[#3D2E05]",
+    sand: "text-stone-550",
+  };
 
   return (
-    <div className="space-y-8">
-      {/* Saudação */}
+    <div className="space-y-7">
       <section className="max-w-3xl space-y-3 pt-4">
         <p className="label-mono text-stone-550">{dataHoje}</p>
-        <h1 className="text-4xl font-bold leading-none tracking-[-0.04em] sm:text-[56px]">
+        <h1 className="text-4xl font-bold leading-none tracking-[-0.04em] sm:text-[52px]">
           {saudacao}
           {primeiroNome ? `, ${primeiroNome}` : ""}
         </h1>
         <p className="text-[17px] leading-relaxed text-[#4A463F]">{mensagem}</p>
       </section>
 
-      {/* Destaques */}
-      <section className="grid gap-4 lg:grid-cols-2">
-        <Link
-          href="/posts?atrasados=1"
-          className="group flex min-h-[290px] flex-col gap-4 rounded-4xl bg-bussola-yellow p-6 text-ink transition hover:brightness-[0.97] sm:p-7"
-        >
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-lg font-bold">Atrasados</h2>
-            <span className="label-mono text-[#3D2E05]">Prazo vencido</span>
-          </div>
-          <span className="text-[104px] font-extrabold leading-[0.9] tracking-[-0.06em]">{atrasados}</span>
-          <div className="mt-auto flex flex-wrap items-end justify-between gap-4">
-            {maisAntigo ? (
-              <div className="min-w-0 space-y-1">
-                <p className="label-mono text-[#3D2E05]">Mais antigo</p>
-                <p className="truncate text-sm font-semibold">
-                  {maisAntigo.post.titulo} · {maisAntigo.dias} {plural(maisAntigo.dias, "dia", "dias")}
-                </p>
-              </div>
-            ) : (
-              <p className="text-sm font-semibold">Nenhum post fora do prazo.</p>
-            )}
-            <span className="flex h-11 items-center gap-2 rounded-full bg-ink px-5 text-sm font-semibold text-white">
-              Ver atrasados
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden className="transition group-hover:translate-x-0.5">
-                <path d="M5 12h14M13 6l6 6-6 6" />
-              </svg>
-            </span>
-          </div>
-        </Link>
+      {tiles.length > 0 && (
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {tiles.map((t) => (
+            <a key={t.id} href={`#${t.id}`} className={`flex flex-col gap-2 rounded-[22px] p-5 transition hover:brightness-[0.97] ${corTile[t.cor]}`}>
+              <span className={`label-mono ${corTileLabel[t.cor]}`}>{t.label}</span>
+              <span className="text-5xl font-extrabold leading-none tracking-[-0.05em]">{t.n}</span>
+            </a>
+          ))}
+        </section>
+      )}
 
-        <article className="flex min-h-[290px] flex-col gap-5 rounded-4xl bg-ink p-6 text-paper sm:p-7">
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-lg font-bold text-white">Fluxo de produção</h2>
-            <span className="label-mono text-[#9A9488]">Posts ativos</span>
-          </div>
-          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <span className="text-6xl font-extrabold leading-none tracking-[-0.05em] text-white">{totalFluxo}</span>
-            <span className="text-sm text-[#B9B3A6]">
-              na fila agora
-              {prontoParaEditarHoje > 0 && (
-                <>
-                  {" · "}
-                  <strong className="font-semibold text-bussola-yellow">
-                    {prontoParaEditarHoje} {plural(prontoParaEditarHoje, "pronto", "prontos")} pra editar hoje
-                  </strong>
-                </>
-              )}
-            </span>
-          </div>
-          {totalFluxo > 0 && (
-            <div
-              role="img"
-              aria-label={fluxo.map((f) => `${f.count} ${f.label}`).join(", ")}
-              className="flex h-3.5 gap-1"
+      {nada && (
+        <div className="rounded-4xl bg-sand p-8 text-center">
+          <p className="text-lg font-semibold">Nada pendente com você agora.</p>
+          <p className="mt-1 text-sm text-stone-550">
+            Quando um post for atribuído a você, ou um cliente seu tiver algo pra revisar, ele aparece aqui.{" "}
+            <Link href="/posts" className="font-semibold text-ink underline underline-offset-4">Ver todos os posts</Link>
+          </p>
+        </div>
+      )}
+
+      <div className={`grid items-start gap-5 ${temColunaLateral ? "lg:grid-cols-[minmax(0,1fr)_320px]" : ""}`}>
+        <div className="min-w-0 space-y-6">
+          {atrasados.length > 0 && (
+            <Secao id="atrasados" titulo="Atrasados" sub="Resolver primeiro" subCor="text-[#9A2A12]">
+              {atrasados.map((p) => (
+                <LinhaExecutor key={p.id} p={p} acao={p.status === "alterar" ? "Abrir e ajustar" : "Abrir"} />
+              ))}
+            </Secao>
+          )}
+
+          {revisar.length > 0 && (
+            <Secao id="revisar" titulo="Pra revisar" sub="Entregues pela equipe">
+              {revisar.map((p) => {
+                const quem = p.responsavel_id ? userMap.get(p.responsavel_id)?.nome?.split(" ")[0] : null;
+                return (
+                  <article key={p.id} className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-[20px] bg-[#FBFAF7] px-[18px] py-4">
+                    <div className="min-w-0 flex-[1_1_240px] space-y-1">
+                      <span className="label-mono block text-[9.5px] text-stone-550">
+                        {FORMAT_LABELS[p.formato]}{quem ? ` · por ${quem}` : ""}
+                      </span>
+                      <Link href={`/posts/${p.id}`} className="block text-base font-semibold hover:underline">{p.titulo}</Link>
+                      <p className="text-[13px] text-stone-550">
+                        {clientMap.get(p.client_id)?.nome}
+                        {p.delivered_link && (
+                          <>
+                            {" · "}
+                            <a href={p.delivered_link} target="_blank" rel="noopener noreferrer" className="font-semibold text-ink underline-offset-4 hover:underline">
+                              Ver entrega ↗
+                            </a>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    <AcoesMesa postId={p.id} tipo="revisar" baseUrl={baseUrl} />
+                  </article>
+                );
+              })}
+            </Secao>
+          )}
+
+          {ajustes.length > 0 && (
+            <Secao id="ajustes" titulo="Ajustes pedidos" sub="Voltaram pra você">
+              {ajustes.map((p) => <LinhaExecutor key={p.id} p={p} acao="Abrir e ajustar" />)}
+            </Secao>
+          )}
+
+          {publicar.length > 0 && (
+            <Secao
+              id="publicar"
+              titulo="Pra publicar"
+              sub={vencidos ? `${plural(vencidos, "com a data vencida", "com a data vencida")}` : "Aprovados pelo cliente"}
+              subCor={vencidos ? "text-[#9A2A12]" : undefined}
             >
-              {fluxo
-                .filter((f) => f.count > 0)
-                .map((f) => (
-                  <span key={f.label} className="rounded-[4px]" style={{ flex: f.count, background: f.cor }} />
-                ))}
-            </div>
+              {publicar.map((p) => {
+                const vencido = !!p.data_publicacao_planejada && p.data_publicacao_planejada < hoje;
+                const dias = vencido ? diasEntre(p.data_publicacao_planejada!, hoje) : 0;
+                return (
+                  <article key={p.id} className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-[20px] bg-[#FBFAF7] px-[18px] py-4">
+                    {vencido && (
+                      <span className="flex h-12 w-12 flex-none items-center justify-center rounded-[14px] bg-ink text-[13px] font-extrabold text-bussola-yellow">
+                        {dias}d
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-[1_1_220px] space-y-1">
+                      <p className="text-base font-semibold">{p.titulo}</p>
+                      <p className="text-[13px] text-stone-550">
+                        {clientMap.get(p.client_id)?.nome} · aprovado · {vencido ? "publicação era" : "publicação"} {ddmm(p.data_publicacao_planejada)}
+                      </p>
+                    </div>
+                    <AcoesMesa postId={p.id} tipo="publicar" />
+                  </article>
+                );
+              })}
+            </Secao>
           )}
-          <div className="mt-auto grid grid-cols-3 gap-x-3 gap-y-4 sm:grid-cols-6">
-            {fluxo.map((f) => (
-              <Link key={f.label} href={f.href} className="group space-y-1.5 rounded-lg">
-                <span className="block text-[22px] font-bold text-white group-hover:text-bussola-yellow">{f.count}</span>
-                <span className="label-mono flex items-center gap-1.5 text-[#B9B3A6]">
-                  <span className="h-[7px] w-[7px] flex-none rounded-[2px]" style={{ background: f.cor }} />
-                  {f.label}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </article>
-      </section>
 
-      {/* No feed + mais atrasados */}
-      <section className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <article className="flex flex-col gap-5 rounded-4xl bg-sand p-6">
-          <div className="space-y-1">
-            <h2 className="text-[17px] font-bold">No feed</h2>
-            <span className="label-mono block text-stone-550">Este mês</span>
-          </div>
-          <div className="flex flex-wrap gap-x-8 gap-y-5 lg:flex-col lg:divide-y lg:divide-sand-line">
-            <Link href="/posts?status=publicado" className="space-y-1.5 hover:opacity-80">
-              <span className="block text-[44px] font-extrabold leading-none tracking-[-0.04em]">{publicadosMes}</span>
-              <span className="label-mono block text-stone-550">Publicados</span>
-            </Link>
-            <Link href="/posts?status=aprovado" className="space-y-1.5 hover:opacity-80 lg:pt-5">
-              <span className="block text-[44px] font-extrabold leading-none tracking-[-0.04em]">{aprovados}</span>
-              <span className="label-mono block text-stone-550">Prontos pra postar</span>
-            </Link>
-          </div>
-        </article>
-
-        <article className="flex flex-col gap-3 rounded-4xl bg-sand p-6">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-[17px] font-bold">Mais atrasados</h2>
-            <Link href="/posts?atrasados=1" className="label-mono text-ink underline-offset-4 hover:underline">
-              Ver todos
-            </Link>
-          </div>
-          {maisAtrasados.length === 0 && (
-            <p className="rounded-2xl bg-sand-light px-4 py-5 text-sm text-stone-550">Tudo dentro do prazo por aqui.</p>
+          {praHoje.length > 0 && (
+            <Secao id="hoje" titulo="Pra hoje" sub={dataHoje}>
+              {praHoje.map((p) => <LinhaExecutor key={p.id} p={p} acao="Entregar" />)}
+            </Secao>
           )}
-          {maisAtrasados.map(({ post, dias, data, deEntrega }) => {
-            const dono = post.responsavel_id ? userMap.get(post.responsavel_id) : null;
-            const cliente = clientMap.get(post.client_id);
-            return (
-              <Link
-                key={post.id}
-                href={`/posts/${post.id}`}
-                className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-sand-light px-4 py-3 transition hover:bg-white"
-              >
-                <span className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-ink text-[13px] font-extrabold text-bussola-yellow">
-                  {dias}d
-                </span>
-                <div className="min-w-0 flex-[1_1_200px]">
-                  <p className="truncate text-[14.5px] font-semibold">{post.titulo}</p>
-                  <p className="truncate text-[13px] text-stone-550">
-                    {[cliente?.nome, dono ? (dono.nome || dono.email).split(" ")[0] : null].filter(Boolean).join(" · ")}
-                  </p>
-                </div>
-                <span className="label-mono text-stone-550">{FORMAT_LABELS[post.formato]}</span>
-                <span className="label-mono text-[#9A2A12]">
-                  {deEntrega ? "Entrega" : "Publicação"} {ddmm(data)}
-                </span>
-              </Link>
-            );
-          })}
-        </article>
-      </section>
 
-      {/* Fila da equipe */}
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <div className="flex items-baseline gap-3.5">
-            <h2 className="text-2xl font-bold tracking-[-0.02em]">Fila da equipe</h2>
-            <span className="label-mono text-stone-550">Por responsável</span>
-          </div>
-          <Link href="/posts" className="text-sm font-semibold underline-offset-4 hover:underline">
-            Ver todos os posts
-          </Link>
-        </div>
-        {allPosts.length === 0 ? (
-          <p className="rounded-3xl bg-sand p-8 text-center text-sm text-stone-550">Nenhum post cadastrado ainda.</p>
-        ) : (
-          <PersonKanban
-            posts={allPosts.map((p) => ({ ...p, data_publicacao_planejada: p.data_entrega }))}
-            users={allUsers}
-            clients={activeClients}
-          />
-        )}
-      </section>
-
-      {/* Clientes */}
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <div className="flex items-baseline gap-3.5">
-            <h2 className="text-2xl font-bold tracking-[-0.02em]">Clientes</h2>
-            <span className="label-mono text-stone-550">{activeClients.length} ativos</span>
-          </div>
-          <Link href="/clientes" className="text-sm font-semibold underline-offset-4 hover:underline">
-            Ver clientes
-          </Link>
-        </div>
-        {activeClients.length === 0 ? (
-          <p className="rounded-3xl bg-sand p-8 text-center text-sm text-stone-550">Nenhum cliente ativo.</p>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {activeClients.map((client) => {
-              const cPosts = allPosts.filter((p) => p.client_id === client.id);
-              const aFazer = cPosts.filter(isAFazer).length;
-              const cAtrasados = cPosts.filter(isAtrasado).length;
-              return (
-                <Link
-                  key={client.id}
-                  href={`/clientes/${client.id}`}
-                  className="flex items-center gap-3.5 rounded-3xl bg-sand p-4 transition hover:bg-sand-line"
-                >
-                  <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-ink text-sm font-bold text-paper">
-                    {client.nome.charAt(0).toUpperCase()}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">{client.nome}</p>
-                    <p className="mt-0.5 flex gap-3 text-[13px] text-stone-550">
-                      <span>{aFazer} a fazer</span>
-                      {cAtrasados > 0 && <span className="font-semibold text-[#9A2A12]">{cAtrasados} atrasados</span>}
-                    </p>
+          {comClienteOrdenado.length > 0 && (
+            <Secao id="cliente" titulo="Com o cliente" sub={emAjusteDeOutros ? `Esperando resposta · ${emAjusteDeOutros} em ajuste com a equipe` : "Esperando resposta"}>
+              <div className="rounded-[20px] bg-[#FBFAF7] px-[18px] py-1.5">
+                {comClienteOrdenado.map(({ post: p, dias }) => (
+                  <div key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-[#EDE9E0] py-3 last:border-0">
+                    <Link href={`/posts/${p.id}`} className="min-w-0 flex-[1_1_220px] text-[14.5px] font-semibold hover:underline">
+                      {p.titulo} <span className="font-medium text-stone-550">· {clientMap.get(p.client_id)?.nome}</span>
+                    </Link>
+                    <span className={`label-mono ${dias >= 3 ? "text-[#9A2A12]" : "text-stone-550"}`}>
+                      {dias <= 0 ? "Hoje" : `Há ${plural(dias, "dia", "dias")}`}
+                    </span>
+                    <AcoesMesa postId={p.id} tipo="cliente" token={p.public_token} baseUrl={baseUrl} />
                   </div>
+                ))}
+              </div>
+            </Secao>
+          )}
+        </div>
+
+        {temColunaLateral && (
+          <div className="space-y-4">
+            {(semana.length > 0 || semData > 0) && (
+              <aside id="semana" className="space-y-4 rounded-3xl bg-sand p-5">
+                <div className="flex items-baseline justify-between">
+                  <h2 className="text-[17px] font-bold">Próximos 7 dias</h2>
+                  <span className="label-mono text-stone-550">{plural(semana.length, "post", "posts")}</span>
+                </div>
+                {Array.from(new Set(semana.map((p) => p.data_entrega!))).map((dia) => (
+                  <div key={dia} className="space-y-1.5">
+                    <p className="label-mono text-stone-550">
+                      {new Intl.DateTimeFormat("pt-BR", { weekday: "short", timeZone: "UTC" }).format(new Date(dia + "T12:00:00Z")).replace(".", "")} · {ddmm(dia)}
+                    </p>
+                    {semana.filter((p) => p.data_entrega === dia).map((p) => (
+                      <Link key={p.id} href={`/posts/${p.id}`} className="block rounded-[14px] bg-sand-light px-3 py-2.5 transition hover:bg-white">
+                        <span className="block text-sm font-semibold">{p.titulo}</span>
+                        <span className="block text-[12.5px] text-stone-550">
+                          {clientMap.get(p.client_id)?.nome} · {FORMAT_LABELS[p.formato]}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                ))}
+                {semData > 0 && (
+                  <p className="text-[12.5px] text-stone-550">
+                    + {plural(semData, "post seu sem data de entrega", "posts seus sem data de entrega")}.
+                  </p>
+                )}
+                <Link href={`/posts?resp=${me.id}`} className="block pt-1 text-center text-[13.5px] font-semibold underline-offset-4 hover:underline">
+                  Ver todos os meus posts
                 </Link>
-              );
-            })}
+              </aside>
+            )}
+
+            {resumoClientes.length > 0 && (
+              <aside className="space-y-3 rounded-3xl bg-sand p-5">
+                <div className="flex items-baseline justify-between">
+                  <h2 className="text-[17px] font-bold">Meus clientes</h2>
+                  <span className="label-mono text-stone-550">{resumoClientes.length}</span>
+                </div>
+                {resumoClientes.map(({ client: c, resumo, alerta }) => (
+                  <Link key={c.id} href={`/clientes/${c.id}`} className="flex items-center gap-3 rounded-2xl bg-sand-light p-3 transition hover:bg-white">
+                    <span className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-full bg-ink text-[13px] font-bold text-paper">
+                      {c.nome.charAt(0).toUpperCase()}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold">{c.nome}</span>
+                      <span className="block truncate text-[12.5px] text-stone-550">{resumo}</span>
+                    </span>
+                    {alerta && <span className="h-2 w-2 flex-none rounded-full bg-[#C2410C]" aria-label="Tem pendência" />}
+                  </Link>
+                ))}
+                <p className="text-[12.5px] leading-relaxed text-stone-550">Ponto laranja: post atrasado ou aprovado sem publicar.</p>
+              </aside>
+            )}
           </div>
         )}
-      </section>
+      </div>
     </div>
   );
 }

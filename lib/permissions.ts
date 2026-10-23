@@ -50,6 +50,12 @@ export function canManageTeam(role: UserRole | undefined): boolean {
   return role === "admin";
 }
 
+// Visão geral da equipe (painel com a fila de todos): quem coordena.
+// Editor e designer ficam com a Minha mesa.
+export function canViewPainel(role: UserRole | undefined): boolean {
+  return role !== undefined && ROLES_GESTAO.includes(role);
+}
+
 // Visão da equipe e Indicadores
 export function canViewAdminPanels(role: UserRole | undefined): boolean {
   return role === "admin" || role === "gestor_projetos";

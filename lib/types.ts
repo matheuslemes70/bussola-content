@@ -8,6 +8,7 @@ export type PostStatus =
   | "a_produzir"
   | "em_producao"
   | "pronto_pra_editar"
+  | "revisao_interna"
   | "para_aprovacao"
   | "alterar"
   | "aprovado"

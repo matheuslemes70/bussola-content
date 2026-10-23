@@ -46,7 +46,8 @@ const SEM_EXECUTOR = "__sem_executor";
 type ColunaTipo = { kind: "pessoa"; id: string; label: string } | { kind: "status"; status: PostStatus; label: string };
 
 const COLUNAS_STATUS: ColunaTipo[] = [
-  { kind: "status", status: "para_aprovacao", label: "Para aprovação" },
+  { kind: "status", status: "revisao_interna", label: "Revisão interna" },
+  { kind: "status", status: "para_aprovacao", label: "Com o cliente" },
   { kind: "status", status: "aprovado", label: "Aprovado" },
   { kind: "status", status: "publicado", label: "Postado" },
 ];

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
-import { canManagePosts, canDeletePosts, canViewDataPublicacao } from "@/lib/permissions";
+import { canCreatePosts, canManagePosts, canDeletePosts, canViewDataPublicacao } from "@/lib/permissions";
 import {
   STATUS_LABELS,
   FORMAT_LABELS,
@@ -21,6 +21,7 @@ import { InternalChat } from "@/components/posts/InternalChat";
 import { Checklist } from "@/components/posts/Checklist";
 import { ReferenceLinks } from "@/components/posts/ReferenceLinks";
 import { Attachments } from "@/components/posts/Attachments";
+import { FluxoPost } from "@/components/posts/FluxoPost";
 
 import { RichText } from "@/components/ui/RichText";
 import type {
@@ -69,6 +70,26 @@ export default async function PostPage({
   const atrasado = isAtrasado(p);
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
   const pode = canManagePosts(me?.perfil);
+  const podeGerir = canCreatePosts(me?.perfil);
+  const podeEntregar = podeGerir || (!!me && p.responsavel_id === me.id);
+
+  // Quem revisa: o dono da demanda; sem dono, a social media do cliente.
+  const revisor = dono ?? (c?.responsavel_id ? userMap.get(c.responsavel_id) : null);
+  const revisorNome = revisor ? (revisor.nome || revisor.email).split(" ")[0] : null;
+
+  // Pedido de ajuste mais recente (do cliente ou da equipe), em destaque.
+  const ultimoComentario = [...((comments as Comment[]) ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  const pedidoAjuste =
+    p.status === "alterar" && ultimoComentario
+      ? {
+          quem:
+            ultimoComentario.tipo === "cliente"
+              ? ultimoComentario.author_name || "Cliente"
+              : (ultimoComentario.author_id ? userMap.get(ultimoComentario.author_id)?.nome?.split(" ")[0] : null) || "Equipe",
+          texto: ultimoComentario.texto.replace(/^Ajuste pedido:\s*/, ""),
+          quando: formatDateTime(ultimoComentario.created_at),
+        }
+      : null;
 
   return (
     <div className="space-y-6">
@@ -106,6 +127,15 @@ export default async function PostPage({
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Coluna principal */}
         <div className="space-y-6 lg:col-span-2">
+          {pedidoAjuste && (
+            <section className="space-y-2 rounded-3xl bg-[#FCEBB6] p-[22px]">
+              <div className="flex flex-wrap items-baseline justify-between gap-3">
+                <h2 className="text-[17px] font-bold">O que pediram</h2>
+                <span className="label-mono text-[#5C4300]">{pedidoAjuste.quem} · {pedidoAjuste.quando}</span>
+              </div>
+              <p className="whitespace-pre-wrap text-base leading-relaxed">{pedidoAjuste.texto}</p>
+            </section>
+          )}
           <section className="rounded-xl bg-white p-5 shadow-sm">
             <h2 className="mb-3 text-sm font-semibold uppercase text-slate-400">Detalhes</h2>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
@@ -198,6 +228,15 @@ export default async function PostPage({
 
         {/* Coluna lateral */}
         <div className="space-y-6">
+          <FluxoPost
+            postId={p.id}
+            status={p.status}
+            deliveredLink={p.delivered_link}
+            podeEntregar={podeEntregar}
+            podeGerir={podeGerir}
+            revisorNome={revisorNome}
+            baseUrl={baseUrl}
+          />
           {pode && (
             <section className="rounded-xl bg-white p-5 shadow-sm">
               <h2 className="mb-3 text-sm font-semibold uppercase text-slate-400">Aprovação</h2>

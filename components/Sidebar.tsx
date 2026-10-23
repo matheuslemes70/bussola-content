@@ -5,12 +5,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { ROLE_LABELS, canManageTeam, canViewAdminPanels, canViewFinanceiro, canViewProspeccao } from "@/lib/permissions";
+import { ROLE_LABELS, canManageTeam, canViewAdminPanels, canViewFinanceiro, canViewPainel, canViewProspeccao } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 
 // Ícones de traço simples, um por item do menu
 const ICON_PATHS: Record<string, React.ReactNode> = {
-  "/": (<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>),
+  "/": (<><path d="M3 10h18M5 10v9M19 10v9" /><path d="M8 5h8l2 5H6l2-5Z" /></>),
+  "/painel": (<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>),
   "/clientes": (<><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5" /><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c1.9.8 3.1 2.5 3.5 5.2" /></>),
   "/posts": (<><path d="M12 3 3 8l9 5 9-5-9-5Z" /><path d="m3 13 9 5 9-5" /></>),
   "/equipe": (<><circle cx="12" cy="8" r="4" /><path d="M4 21c1-4.2 4.1-6.5 8-6.5s7 2.3 8 6.5" /></>),
@@ -45,7 +46,7 @@ const ITEM_ON = "bg-ink-muted text-white";
 const ITEM_OFF = "text-[#B9B3A6] hover:bg-ink-soft hover:text-white";
 
 const GERAL = [
-  { href: "/", label: "Visão geral", exact: true },
+  { href: "/", label: "Minha mesa", exact: true },
   { href: "/clientes", label: "Clientes" },
   { href: "/posts", label: "Todos os posts" },
 ];
@@ -75,7 +76,9 @@ export function Sidebar({
     return pathname === href || pathname.startsWith(href + "/");
   }
 
-  const geralItems = [...GERAL];
+  const geralItems: { href: string; label: string; exact?: boolean }[] = [GERAL[0]];
+  if (canViewPainel(user.perfil)) geralItems.push({ href: "/painel", label: "Visão geral" });
+  geralItems.push(...GERAL.slice(1));
   if (canManageTeam(user.perfil)) {
     geralItems.push({ href: "/equipe", label: "Equipe" });
   }
