@@ -49,6 +49,7 @@ const COLUNAS_STATUS: ColunaTipo[] = [
   { kind: "status", status: "revisao_interna", label: "Revisão interna" },
   { kind: "status", status: "para_aprovacao", label: "Com o cliente" },
   { kind: "status", status: "aprovado", label: "Aprovado" },
+  { kind: "status", status: "agendado", label: "Agendado" },
   { kind: "status", status: "publicado", label: "Postado" },
 ];
 

@@ -17,8 +17,7 @@ const PAGINAS: { prefix: string; secao: string; titulo: string; exact?: boolean 
   { prefix: "/arquivados", secao: "Operação", titulo: "Arquivados" },
   { prefix: "/equipe", secao: "Operação", titulo: "Equipe" },
   { prefix: "/tarefas", secao: "Estratégico", titulo: "Tarefas" },
-  { prefix: "/visao-equipe", secao: "Estratégico", titulo: "Visão da equipe" },
-  { prefix: "/indicadores", secao: "Estratégico", titulo: "Indicadores" },
+  { prefix: "/desempenho", secao: "Estratégico", titulo: "Desempenho" },
   { prefix: "/prospeccao", secao: "Estratégico", titulo: "Prospecção" },
   { prefix: "/financeiro", secao: "Estratégico", titulo: "Financeiro" },
 ];

@@ -36,7 +36,7 @@ export default async function MinhaMesaPage() {
   if (!me) return null;
 
   const [{ data: posts }, { data: clients }, { data: users }] = await Promise.all([
-    supabase.from("posts").select("*").eq("arquivado", false),
+    supabase.from("posts").select("*").eq("arquivado", false).neq("status", "publicado"),
     supabase.from("clients").select("*").order("nome"),
     supabase.from("users").select("*").eq("ativo", true),
   ]);
@@ -72,6 +72,7 @@ export default async function MinhaMesaPage() {
     .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
   const publicar = todos.filter((p) => escopo(p) && p.status === "aprovado")
     .sort((a, b) => (a.data_publicacao_planejada ?? "9999").localeCompare(b.data_publicacao_planejada ?? "9999"));
+  const agendados = todos.filter((p) => escopo(p) && p.status === "agendado").length;
   const vencidos = publicar.filter((p) => p.data_publicacao_planejada && p.data_publicacao_planejada < hoje).length;
   const comCliente = todos.filter((p) => escopo(p) && p.status === "para_aprovacao");
   // Publicação em risco: publica de 3 dias atrás até amanhã e ainda não foi
@@ -365,7 +366,7 @@ export default async function MinhaMesaPage() {
             <Secao
               id="publicar"
               titulo="Pra publicar"
-              sub={vencidos ? `${plural(vencidos, "com a data vencida", "com a data vencida")}` : "Aprovados pelo cliente"}
+              sub={vencidos ? `${plural(vencidos, "com a data vencida", "com a data vencida")}` : "Aprovados pelo cliente · agende ou marque como publicado"}
               subCor={vencidos ? "text-[#9A2A12]" : undefined}
             >
               {publicar.map((p) => {
@@ -389,6 +390,12 @@ export default async function MinhaMesaPage() {
                 );
               })}
             </Secao>
+          )}
+
+          {agendados > 0 && (
+            <p className="text-[13px] text-stone-550">
+              {plural(agendados, "post agendado", "posts agendados")} na rede. Eles viram &quot;Publicado&quot; sozinhos no dia seguinte à data.
+            </p>
           )}
 
           {praHoje.length > 0 && (

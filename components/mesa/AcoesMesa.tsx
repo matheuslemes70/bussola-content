@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { enviarAoCliente, pedirAjuste, marcarPublicado, cobrarExecutor } from "@/app/(app)/posts/actions";
+import { enviarAoCliente, pedirAjuste, marcarPublicado, marcarAgendado, cobrarExecutor } from "@/app/(app)/posts/actions";
 
 // Botões rápidos da social media na Minha mesa.
 // tipo "revisar": Pedir ajuste / Enviar ao cliente
@@ -72,6 +72,15 @@ export function AcoesMesa({
     });
   }
 
+  function onAgendado() {
+    setErro(null);
+    startTransition(async () => {
+      const res = await marcarAgendado(postId);
+      if (res && "error" in res && res.error) return setErro(res.error);
+      router.refresh();
+    });
+  }
+
   function onPublicado() {
     setErro(null);
     startTransition(async () => {
@@ -136,13 +145,16 @@ export function AcoesMesa({
               Abrir
             </Link>
           )}
+          <button type="button" onClick={onAgendado} disabled={pending} className={btnClaro}>
+            Agendado
+          </button>
           <button
             type="button"
             onClick={onPublicado}
             disabled={pending}
             className="flex h-10 items-center rounded-full bg-bussola-yellow px-4 text-[13.5px] font-bold text-ink transition hover:brightness-95 disabled:opacity-60"
           >
-            {pending ? "Salvando…" : "Marcar como publicado"}
+            {pending ? "Salvando…" : "Publicado"}
           </button>
         </div>
       )}

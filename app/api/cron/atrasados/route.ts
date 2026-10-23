@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email";
-import { isAtrasado, formatDate } from "@/lib/status";
+import { isAtrasado, formatDate, hojeBrasilia } from "@/lib/status";
 import type { Post, PostStatus, User } from "@/lib/types";
 
 const EM_PRODUCAO: PostStatus[] = ["a_produzir", "em_producao", "pronto_pra_editar", "alterar"];
@@ -21,9 +21,18 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
+  // 1) Agendados cuja data de publicação já passou viram "Publicado".
+  const { data: publicadosAgora } = await supabase
+    .from("posts")
+    .update({ status: "publicado" })
+    .eq("status", "agendado")
+    .lt("data_publicacao_planejada", hojeBrasilia())
+    .select("id");
+
+  // 2) Atrasos: e-mail + aviso no sino para cada pessoa.
   const { data: posts, error } = await supabase
     .from("posts")
-    .select("*, clients(nome)")
+    .select("*, clients(nome, responsavel_id)")
     .neq("status", "publicado")
     .eq("arquivado", false);
 
@@ -32,12 +41,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const atrasados = ((posts as (Post & { clients: { nome: string } | null })[]) ?? []).filter(
+  const atrasados = ((posts as (Post & { clients: { nome: string; responsavel_id: string | null } | null })[]) ?? []).filter(
     (p) => isAtrasado(p)
   );
 
   if (atrasados.length === 0) {
-    return NextResponse.json({ ok: true, notificados: 0 });
+    return NextResponse.json({ ok: true, notificados: 0, agendadosPublicados: publicadosAgora?.length ?? 0 });
   }
 
   const { data: users } = await supabase.from("users").select("id, nome, email, ativo");
@@ -58,7 +67,9 @@ export async function GET(request: NextRequest) {
   for (const post of atrasados) {
     const deProducao = EM_PRODUCAO.includes(post.status);
     if (deProducao && post.responsavel_id) adicionar(post.responsavel_id, "executor", post);
-    if (post.dono_id && (post.dono_id !== post.responsavel_id || !deProducao)) adicionar(post.dono_id, "dono", post);
+    // Sem dono definido, quem acompanha é a social media responsável pelo cliente.
+    const dono = post.dono_id ?? post.clients?.responsavel_id ?? null;
+    if (dono && (dono !== post.responsavel_id || !deProducao)) adicionar(dono, "dono", post);
   }
 
   let notificados = 0;
@@ -97,8 +108,25 @@ export async function GET(request: NextRequest) {
       subject: `⚠️ ${totalPosts} post(s) atrasado(s) na Bússola`,
       html,
     });
+
+    // Aviso no sino (um por pessoa por dia, com o resumo)
+    const partes = [
+      grupos.executor.length ? `${grupos.executor.length} pra produzir` : null,
+      grupos.dono.length ? `${grupos.dono.length} pra acompanhar (revisão, cliente ou publicação)` : null,
+    ].filter(Boolean);
+    await supabase.from("notifications").insert({
+      user_id: userId,
+      post_id: null,
+      tipo: "geral",
+      mensagem: `Bom dia! Você tem ${totalPosts} post${totalPosts > 1 ? "s" : ""} fora do prazo: ${partes.join(" e ")}. Veja na Minha mesa.`,
+    });
     notificados++;
   }
 
-  return NextResponse.json({ ok: true, notificados, totalAtrasados: atrasados.length });
+  return NextResponse.json({
+    ok: true,
+    notificados,
+    totalAtrasados: atrasados.length,
+    agendadosPublicados: publicadosAgora?.length ?? 0,
+  });
 }

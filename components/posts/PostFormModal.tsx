@@ -4,7 +4,9 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createPost, updatePost } from "@/app/(app)/posts/actions";
 import { FORMAT_LABELS, STATUS_LABELS, STATUS_FLOW } from "@/lib/status";
-import type { Client, Post, User } from "@/lib/types";
+import type { Client, Post, PostStatus, User } from "@/lib/types";
+
+const ETAPAS_EXECUTOR_FORM: PostStatus[] = ["a_produzir", "em_producao", "pronto_pra_editar", "alterar", "revisao_interna"];
 
 export function PostFormModal({
   users,
@@ -15,6 +17,7 @@ export function PostFormModal({
   triggerClass,
   defaultDate,
   podeVerDataPublicacao = true,
+  modoExecutor = false,
   open: openProp,
   onOpenChange,
 }: {
@@ -22,6 +25,8 @@ export function PostFormModal({
   clients?: Client[];
   fixedClientId?: string;
   podeVerDataPublicacao?: boolean;
+  // Editor/designer: só andamento e link de entrega.
+  modoExecutor?: boolean;
   post?: Post;
   triggerLabel?: string;
   triggerClass?: string;
@@ -75,6 +80,24 @@ export function PostFormModal({
               {editing ? "Editar post" : "Novo post"}
             </h2>
             <form onSubmit={onSubmit} className="space-y-3">
+              {modoExecutor && post ? (
+                <>
+                  <p className="text-sm text-slate-600">
+                    Aqui você atualiza o andamento e o link da entrega. Título, briefing, datas e responsáveis ficam com a social media.
+                  </p>
+                  <Field label="Etapa">
+                    <select name="status" defaultValue={post.status} className="pinput">
+                      {ETAPAS_EXECUTOR_FORM.map((s) => (
+                        <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Link do conteúdo entregue">
+                    <input name="delivered_link" defaultValue={post.delivered_link ?? ""} className="pinput" />
+                  </Field>
+                </>
+              ) : (
+              <>
               {!fixedClientId && (
                 <Field label="Cliente">
                   <select name="client_id" required defaultValue={post?.client_id ?? ""} className="pinput">
@@ -153,6 +176,8 @@ export function PostFormModal({
                 </Field>
               </div>
 
+              </>
+              )}
               {erro && <p className="text-sm text-red-600">{erro}</p>}
 
               <div className="flex justify-end gap-2 pt-2">

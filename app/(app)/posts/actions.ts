@@ -13,6 +13,9 @@ import type { PostFormat, PostStatus } from "@/lib/types";
 import { notifyUser, detectarMencoes } from "@/lib/notify";
 
 const GESTOR = ["admin", "social_media", "gestor_projetos"] as const;
+// Etapas que quem executa (editor/designer) pode escolher: a produção e a entrega.
+const ETAPAS_EXECUTOR: PostStatus[] = ["a_produzir", "em_producao", "pronto_pra_editar", "alterar", "revisao_interna"];
+const ehGestaoPerfil = (perfil: string) => (GESTOR as readonly string[]).includes(perfil);
 
 export async function createPost(formData: FormData) {
   const auth = await requireRole([...GESTOR]);
@@ -70,7 +73,29 @@ export async function createPost(formData: FormData) {
 }
 
 export async function updatePost(id: string, formData: FormData) {
+  const auth = await requireRole();
+  if ("error" in auth) return { error: auth.error };
   const supabase = await createClient();
+
+  // Editor e designer mexem só no andamento e no link de entrega.
+  if (!ehGestaoPerfil(auth.user.perfil)) {
+    const status = String(formData.get("status") || "") as PostStatus;
+    if (!ETAPAS_EXECUTOR.includes(status)) return { error: "Essa etapa é com a social media." };
+    const { data: antes } = await supabase.from("posts").select("status, client_id").eq("id", id).single();
+    const { error } = await supabase
+      .from("posts")
+      .update({ status, delivered_link: String(formData.get("delivered_link") || "") || null })
+      .eq("id", id);
+    if (error) return { error: error.message };
+    if (antes && antes.status !== status) {
+      if (status === "revisao_interna") await notifyEntregue(supabase, id);
+    }
+    revalidatePath(`/posts/${id}`);
+    if (antes?.client_id) revalidatePath(`/clientes/${antes.client_id}`);
+    revalidatePath("/posts");
+    revalidatePath("/");
+    return { ok: true };
+  }
 
   const responsavel = String(formData.get("responsavel_id") || "");
   if (!responsavel) return { error: "Escolha quem vai executar o post." };
@@ -133,6 +158,11 @@ if (anterior && anterior.status !== novoStatus) {
 
 // Mudança rápida de status (usada no kanban)
 export async function updatePostStatus(id: string, status: PostStatus) {
+  const auth = await requireRole();
+  if ("error" in auth) return { error: auth.error };
+  if (!ehGestaoPerfil(auth.user.perfil) && !ETAPAS_EXECUTOR.includes(status)) {
+    return { error: "Essa etapa é com a social media." };
+  }
   const supabase = await createClient();
 
   const { data: anterior } = await supabase
@@ -442,7 +472,7 @@ export async function updatePostPerson(id: string, novoExecutorId: string) {
     .single();
   if (!atual) return { error: "Post não encontrado." };
 
-  const statusFinal = ["revisao_interna", "para_aprovacao", "aprovado", "publicado"];
+  const statusFinal = ["revisao_interna", "para_aprovacao", "aprovado", "agendado", "publicado"];
   const payload: { responsavel_id: string; status?: string } = {
     responsavel_id: novoExecutorId,
   };
@@ -468,6 +498,8 @@ export async function updatePostPerson(id: string, novoExecutorId: string) {
 }
 
 export async function archivePost(id: string) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
   const supabase = await createClient();
   const { data: row, error } = await supabase
     .from("posts")
@@ -483,6 +515,8 @@ export async function archivePost(id: string) {
 }
 
 export async function unarchivePost(id: string) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
   const supabase = await createClient();
   const { data: row, error } = await supabase
     .from("posts")
@@ -594,5 +628,18 @@ export async function cobrarExecutor(id: string) {
   const data = post.data_publicacao_planejada?.slice(0, 10);
   const quando = !data ? "em breve" : data <= hoje ? "hoje" : "amanhã";
   await notifyUser(supabase, post.responsavel_id, `${quem} está cobrando "${post.titulo}": publica ${quando}.`, id);
+  return { ok: true };
+}
+
+// Social media agendou na rede: o post sai da fila de "pra publicar" e vira
+// "Publicado" sozinho no dia seguinte à data de publicação (rotina diária).
+export async function marcarAgendado(id: string) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
+  const supabase = await createClient();
+  const { data: row, error } = await supabase
+    .from("posts").update({ status: "agendado" }).eq("id", id).select("client_id").single();
+  if (error) return { error: error.message };
+  revalidarPost(id, row?.client_id);
   return { ok: true };
 }

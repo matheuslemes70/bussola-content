@@ -18,6 +18,7 @@ const ICON_PATHS: Record<string, React.ReactNode> = {
   "/tarefas": (<><rect x="3.5" y="3.5" width="17" height="17" rx="3" /><path d="m8 12 3 3 5-6" /></>),
   "/visao-equipe": (<><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" /><circle cx="12" cy="12" r="3" /></>),
   "/indicadores": (<path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />),
+  "/desempenho": (<path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />),
   "/prospeccao": (<><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" /></>),
   "/financeiro": (<><rect x="2.5" y="6" width="19" height="13" rx="2.5" /><path d="M2.5 10.5h19M16.5 15h1.5" /><path d="M6 6V5a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 18 5v1" /></>),
 };
@@ -88,8 +89,7 @@ export function Sidebar({
     estrategicoItems.push({ href: "/tarefas", label: "Tarefas" });
   }
   if (canViewAdminPanels(user.perfil)) {
-    estrategicoItems.push({ href: "/visao-equipe", label: "Visão da equipe" });
-    estrategicoItems.push({ href: "/indicadores", label: "Indicadores" });
+    estrategicoItems.push({ href: "/desempenho", label: "Desempenho" });
   }
   if (canViewProspeccao(user.perfil)) {
     estrategicoItems.push({ href: "/prospeccao", label: "Prospecção" });

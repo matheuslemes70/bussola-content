@@ -117,5 +117,16 @@ export function FluxoPost({
     );
   }
 
+  if (status === "agendado") {
+    return (
+      <div className="space-y-2 rounded-3xl bg-ink p-[22px] text-paper">
+        {titulo("Agendado", "Na rede")}
+        <p className="text-[13px] leading-relaxed text-[#B9B3A6]">
+          Vira &quot;Publicado&quot; sozinho no dia seguinte à data de publicação.
+        </p>
+      </div>
+    );
+  }
+
   return null;
 }

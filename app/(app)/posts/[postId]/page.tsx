@@ -112,11 +112,12 @@ export default async function PostPage({
               users={allUsers}
               fixedClientId={p.client_id}
               post={p}
+              modoExecutor={!podeGerir}
               podeVerDataPublicacao={canViewDataPublicacao(me?.perfil)}
               triggerLabel="Editar"
               triggerClass="rounded-lg bg-bussola-blue px-4 py-2 text-sm font-medium text-white hover:brightness-110"
             />
-            <ArchiveButton postId={p.id} titulo={p.titulo} />
+            {podeGerir && <ArchiveButton postId={p.id} titulo={p.titulo} />}
             {canDeletePosts(me?.perfil) && (
               <DeletePostButton postId={p.id} titulo={p.titulo} />
             )}

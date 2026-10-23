@@ -12,6 +12,7 @@ export type PostStatus =
   | "para_aprovacao"
   | "alterar"
   | "aprovado"
+  | "agendado"
   | "publicado";
 export type CommentType = "interno" | "cliente";
 export type PautaStatus = "pendente" | "aprovada" | "ajustes_solicitados";

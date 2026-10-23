@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { canViewAdminPanels, canViewDataPublicacao, canViewPainel } from "@/lib/permissions";
-import { isAtrasado, isAFazer, publicadoEsteMes, FORMAT_LABELS } from "@/lib/status";
+import { isAtrasado, isAFazer, FORMAT_LABELS } from "@/lib/status";
 import { PersonKanban } from "@/components/kanban/PersonKanban";
 import type { Post, Client, User } from "@/lib/types";
 
@@ -14,10 +14,19 @@ export default async function DashboardPage() {
   const me = await getCurrentUser();
   if (!canViewPainel(me?.perfil)) redirect("/");
 
-  const [{ data: posts }, { data: clients }, { data: users }] = await Promise.all([
-    supabase.from("posts").select("*").eq("arquivado", false),
+  // Postados há mais de 30 dias não entram (a coluna "Postado" crescia para sempre).
+  const corte30 = new Date(Date.now() - 30 * 86400000).toISOString();
+  const inicioMes =
+    new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date()).slice(0, 8) + "01";
+  const [{ data: posts }, { data: clients }, { data: users }, { data: pubHist }] = await Promise.all([
+    supabase.from("posts").select("*").eq("arquivado", false).or(`status.neq.publicado,updated_at.gte.${corte30}`),
     supabase.from("clients").select("*").order("nome"),
     supabase.from("users").select("*").eq("ativo", true).order("nome"),
+    supabase
+      .from("post_status_history")
+      .select("post_id")
+      .eq("status", "publicado")
+      .gte("created_at", inicioMes + "T00:00:00-03:00"),
   ]);
 
   const allClients = (clients as Client[]) ?? [];
@@ -56,7 +65,11 @@ export default async function DashboardPage() {
       : allPosts.length > 0
       ? "Tudo em ordem por aqui — bom trabalho!"
       : "Aqui está a visão geral das suas demandas.";
-  const publicadosMes = allPosts.filter(publicadoEsteMes).length;
+  // Publicados no mês pela data em que foram marcados (histórico), não pela planejada.
+  const idsAtivos = new Set(((posts as Post[]) ?? []).filter((p) => activeIds.has(p.client_id)).map((p) => p.id));
+  const publicadosMes = new Set(
+    ((pubHist as { post_id: string }[]) ?? []).map((h) => h.post_id).filter((id) => idsAtivos.has(id))
+  ).size;
 
   // ---------- Fluxo de produção (barra segmentada) ----------
   const emProducao = allPosts.filter((p) => p.status === "em_producao").length;

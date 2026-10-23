@@ -20,6 +20,7 @@ export const STATUS_LABELS: Record<PostStatus, string> = {
   para_aprovacao: "Com o cliente",
   alterar: "Alterar",
   aprovado: "Aprovado",
+  agendado: "Agendado",
   publicado: "Publicado",
 };
 
@@ -52,6 +53,7 @@ export const STATUS_FLOW: PostStatus[] = [
   "para_aprovacao",
   "alterar",
   "aprovado",
+  "agendado",
   "publicado",
 ];
 
@@ -64,6 +66,7 @@ export const KANBAN_COLUMN_ORDER: PostStatus[] = [
   "para_aprovacao",
   "alterar",
   "aprovado",
+  "agendado",
   "publicado",
 ];
 
@@ -76,6 +79,7 @@ export const STATUS_COLORS: Record<PostStatus, string> = {
   para_aprovacao: "bg-amber-100 text-amber-700",
   alterar: "bg-orange-100 text-orange-700",
   aprovado: "bg-emerald-100 text-emerald-700",
+  agendado: "bg-teal-100 text-teal-800",
   publicado: "bg-green-600 text-white",
 };
 

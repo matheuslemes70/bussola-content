@@ -18,8 +18,12 @@ export default async function PostsPage({
   const supabase = await createClient();
   const me = await getCurrentUser();
 
+  // Sem filtro de status, publicados há mais de 60 dias ficam de fora (lista leve).
+  const corte60 = new Date(Date.now() - 60 * 86400000).toISOString();
+  let consulta = supabase.from("posts").select("*").eq("arquivado", false);
+  if (!sp.status) consulta = consulta.or(`status.neq.publicado,updated_at.gte.${corte60}`);
   const [{ data: posts }, { data: clients }, { data: users }] = await Promise.all([
-    supabase.from("posts").select("*").eq("arquivado", false).order("data_publicacao_planejada", { ascending: true, nullsFirst: false }),
+    consulta.order("data_publicacao_planejada", { ascending: true, nullsFirst: false }),
     supabase.from("clients").select("*").order("nome"),
     supabase.from("users").select("*").eq("ativo", true).order("nome"),
   ]);
