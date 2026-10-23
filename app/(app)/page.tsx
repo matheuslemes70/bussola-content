@@ -2,18 +2,11 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { canViewAdminPanels, canViewDataPublicacao } from "@/lib/permissions";
-import { isAtrasado, isAFazer, publicadoEsteMes } from "@/lib/status";
+import { isAtrasado, isAFazer, publicadoEsteMes, FORMAT_LABELS } from "@/lib/status";
 import { PersonKanban } from "@/components/kanban/PersonKanban";
 import type { Post, Client, User } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-
-type DashCard = {
-  label: string;
-  count: number;
-  href: string;
-  accent: string;
-};
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -55,7 +48,7 @@ export default async function DashboardPage() {
   const isGestorOuAdmin = canViewAdminPanels(me?.perfil);
   const mensagem =
     isGestorOuAdmin && atrasados > 0
-      ? `A equipe tem ${atrasados} post${atrasados > 1 ? "s" : ""} atrasado${atrasados > 1 ? "s" : ""} que precisa${atrasados > 1 ? "m" : ""} de atenção.`
+      ? `A fila tem ${atrasados} post${atrasados > 1 ? "s" : ""} fora do prazo${aguardando > 0 ? ` e ${aguardando} esperando aprovação do cliente` : ""}. Hoje é dia de destravar o que já está pronto.`
       : !isGestorOuAdmin && meusAtrasados > 0
       ? `Você tem ${meusAtrasados} post${meusAtrasados > 1 ? "s" : ""} atrasado${meusAtrasados > 1 ? "s" : ""} que merece${meusAtrasados > 1 ? "m" : ""} atenção hoje.`
       : allPosts.length > 0
@@ -63,47 +56,211 @@ export default async function DashboardPage() {
       : "Aqui está a visão geral das suas demandas.";
   const publicadosMes = allPosts.filter(publicadoEsteMes).length;
 
-  const cards: DashCard[] = [
-    { label: "A produzir", count: aProduzir, href: "/posts?status=a_produzir", accent: "border-slate-300" },
-    { label: "Pronto pra editar hoje", count: prontoParaEditarHoje, href: "/posts?status=pronto_pra_editar", accent: "border-indigo-400" },
-    { label: "Pronto pra editar", count: prontoParaEditar, href: "/posts?status=pronto_pra_editar", accent: "border-indigo-400" },
-    { label: "Aguardando aprovação", count: aguardando, href: "/posts?status=para_aprovacao", accent: "border-amber-400" },
-    { label: "Com ajuste pendente", count: ajuste, href: "/posts?status=alterar", accent: "border-orange-400" },
-    { label: "Aprovados", count: aprovados, href: "/posts?status=aprovado", accent: "border-emerald-400" },
-    { label: "Atrasados", count: atrasados, href: "/posts?atrasados=1", accent: "border-red-500" },
-    { label: "Publicados este mês", count: publicadosMes, href: "/posts?status=publicado", accent: "border-green-500" },
+  // ---------- Fluxo de produção (barra segmentada) ----------
+  const emProducao = allPosts.filter((p) => p.status === "em_producao").length;
+  const fluxo = [
+    { label: "A produzir", count: aProduzir, href: "/posts?status=a_produzir", cor: "#8A8478" },
+    { label: "Em produção", count: emProducao, href: "/posts?status=em_producao", cor: "#3FB6C9" },
+    { label: "Pra editar", count: prontoParaEditar, href: "/posts?status=pronto_pra_editar", cor: "#5B83F5" },
+    { label: "Aprovação", count: aguardando, href: "/posts?status=para_aprovacao", cor: "#F9B800" },
+    { label: "Ajuste", count: ajuste, href: "/posts?status=alterar", cor: "#EE7A4E" },
+    { label: "Aprovados", count: aprovados, href: "/posts?status=aprovado", cor: "#E8E3D8" },
   ];
+  const totalFluxo = fluxo.reduce((acc, f) => acc + f.count, 0);
+
+  // ---------- Mais atrasados ----------
+  // A data que conta é a de entrega (em produção) ou a de publicação (aguardando
+  // publicar). Quem não pode ver a data de publicação só vê atrasos de entrega.
+  const podeVerPublicacao = canViewDataPublicacao(me?.perfil);
+  const userMap = new Map(allUsers.map((u) => [u.id, u]));
+  const clientMap = new Map(activeClients.map((c) => [c.id, c]));
+  const DIA_MS = 24 * 60 * 60 * 1000;
+  const hojeMs = new Date(hojeBrasilia + "T00:00:00").getTime();
+  const maisAtrasados = allPosts
+    .filter(isAtrasado)
+    .map((p) => {
+      const deEntrega = ["a_produzir", "em_producao", "pronto_pra_editar", "alterar"].includes(p.status);
+      const data = deEntrega ? p.data_entrega : p.data_publicacao_planejada;
+      return { post: p, data, deEntrega };
+    })
+    .filter((x) => x.data && (x.deEntrega || podeVerPublicacao))
+    .map((x) => ({
+      ...x,
+      dias: Math.max(1, Math.round((hojeMs - new Date(x.data + "T00:00:00").getTime()) / DIA_MS)),
+    }))
+    .sort((a, b) => b.dias - a.dias)
+    .slice(0, 3);
+  const maisAntigo = maisAtrasados[0];
+
+  const dataHoje = new Intl.DateTimeFormat("pt-BR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date());
+
+  const ddmm = (d: string | null) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : "—");
+  const plural = (n: number, um: string, varios: string) => (n === 1 ? um : varios);
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">
-          {saudacao}{primeiroNome ? `, ${primeiroNome}` : ""}
+      {/* Saudação */}
+      <section className="max-w-3xl space-y-3 pt-4">
+        <p className="label-mono text-stone-550">{dataHoje}</p>
+        <h1 className="text-4xl font-bold leading-none tracking-[-0.04em] sm:text-[56px]">
+          {saudacao}
+          {primeiroNome ? `, ${primeiroNome}` : ""}
         </h1>
-        <p className={`mt-1 text-sm ${atrasados > 0 ? "text-red-600 font-medium" : "text-slate-500"}`}>
-          {mensagem}
-        </p>
-      </div>
+        <p className="text-[17px] leading-relaxed text-[#4A463F]">{mensagem}</p>
+      </section>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-        {cards.map((c) => (
-          <Link
-            key={c.label}
-            href={c.href}
-            className={`rounded-xl border-l-4 bg-white p-5 shadow-sm transition hover:shadow-md ${c.accent}`}
-          >
-            <p className="text-3xl font-bold text-slate-800">{c.count}</p>
-            <p className="mt-1 text-sm text-slate-500">{c.label}</p>
+      {/* Destaques */}
+      <section className="grid gap-4 lg:grid-cols-2">
+        <Link
+          href="/posts?atrasados=1"
+          className="group flex min-h-[290px] flex-col gap-4 rounded-4xl bg-bussola-yellow p-6 text-ink transition hover:brightness-[0.97] sm:p-7"
+        >
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-lg font-bold">Atrasados</h2>
+            <span className="label-mono text-[#3D2E05]">Prazo vencido</span>
+          </div>
+          <span className="text-[104px] font-extrabold leading-[0.9] tracking-[-0.06em]">{atrasados}</span>
+          <div className="mt-auto flex flex-wrap items-end justify-between gap-4">
+            {maisAntigo ? (
+              <div className="min-w-0 space-y-1">
+                <p className="label-mono text-[#3D2E05]">Mais antigo</p>
+                <p className="truncate text-sm font-semibold">
+                  {maisAntigo.post.titulo} · {maisAntigo.dias} {plural(maisAntigo.dias, "dia", "dias")}
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm font-semibold">Nenhum post fora do prazo.</p>
+            )}
+            <span className="flex h-11 items-center gap-2 rounded-full bg-ink px-5 text-sm font-semibold text-white">
+              Ver atrasados
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden className="transition group-hover:translate-x-0.5">
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            </span>
+          </div>
+        </Link>
+
+        <article className="flex min-h-[290px] flex-col gap-5 rounded-4xl bg-ink p-6 text-paper sm:p-7">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-lg font-bold text-white">Fluxo de produção</h2>
+            <span className="label-mono text-[#9A9488]">Posts ativos</span>
+          </div>
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <span className="text-6xl font-extrabold leading-none tracking-[-0.05em] text-white">{totalFluxo}</span>
+            <span className="text-sm text-[#B9B3A6]">
+              na fila agora
+              {prontoParaEditarHoje > 0 && (
+                <>
+                  {" · "}
+                  <strong className="font-semibold text-bussola-yellow">
+                    {prontoParaEditarHoje} {plural(prontoParaEditarHoje, "pronto", "prontos")} pra editar hoje
+                  </strong>
+                </>
+              )}
+            </span>
+          </div>
+          {totalFluxo > 0 && (
+            <div
+              role="img"
+              aria-label={fluxo.map((f) => `${f.count} ${f.label}`).join(", ")}
+              className="flex h-3.5 gap-1"
+            >
+              {fluxo
+                .filter((f) => f.count > 0)
+                .map((f) => (
+                  <span key={f.label} className="rounded-[4px]" style={{ flex: f.count, background: f.cor }} />
+                ))}
+            </div>
+          )}
+          <div className="mt-auto grid grid-cols-3 gap-x-3 gap-y-4 sm:grid-cols-6">
+            {fluxo.map((f) => (
+              <Link key={f.label} href={f.href} className="group space-y-1.5 rounded-lg">
+                <span className="block text-[22px] font-bold text-white group-hover:text-bussola-yellow">{f.count}</span>
+                <span className="label-mono flex items-center gap-1.5 text-[#B9B3A6]">
+                  <span className="h-[7px] w-[7px] flex-none rounded-[2px]" style={{ background: f.cor }} />
+                  {f.label}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      {/* No feed + mais atrasados */}
+      <section className="grid gap-4 lg:grid-cols-3">
+        <article className="flex flex-col gap-5 rounded-4xl bg-sand p-6">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-[17px] font-bold">No feed</h2>
+            <span className="label-mono text-stone-550">Este mês</span>
+          </div>
+          <div className="flex flex-wrap gap-8">
+            <Link href="/posts?status=publicado" className="space-y-1.5">
+              <span className="block text-[44px] font-extrabold leading-none tracking-[-0.04em]">{publicadosMes}</span>
+              <span className="label-mono block text-stone-550">Publicados</span>
+            </Link>
+            <Link href="/posts?status=aprovado" className="space-y-1.5">
+              <span className="block text-[44px] font-extrabold leading-none tracking-[-0.04em]">{aprovados}</span>
+              <span className="label-mono block text-stone-550">Prontos pra postar</span>
+            </Link>
+          </div>
+        </article>
+
+        <article className="flex flex-col gap-3 rounded-4xl bg-sand p-6 lg:col-span-2">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-[17px] font-bold">Mais atrasados</h2>
+            <Link href="/posts?atrasados=1" className="label-mono text-ink underline-offset-4 hover:underline">
+              Ver todos
+            </Link>
+          </div>
+          {maisAtrasados.length === 0 && (
+            <p className="rounded-2xl bg-sand-light px-4 py-5 text-sm text-stone-550">Tudo dentro do prazo por aqui.</p>
+          )}
+          {maisAtrasados.map(({ post, dias, data, deEntrega }) => {
+            const dono = post.responsavel_id ? userMap.get(post.responsavel_id) : null;
+            const cliente = clientMap.get(post.client_id);
+            return (
+              <Link
+                key={post.id}
+                href={`/posts/${post.id}`}
+                className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-sand-light px-4 py-3 transition hover:bg-white"
+              >
+                <span className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-ink text-[13px] font-extrabold text-bussola-yellow">
+                  {dias}d
+                </span>
+                <div className="min-w-0 flex-[1_1_200px]">
+                  <p className="truncate text-[14.5px] font-semibold">{post.titulo}</p>
+                  <p className="truncate text-[13px] text-stone-550">
+                    {[cliente?.nome, dono ? (dono.nome || dono.email).split(" ")[0] : null].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
+                <span className="label-mono text-stone-550">{FORMAT_LABELS[post.formato]}</span>
+                <span className="label-mono text-[#9A2A12]">
+                  {deEntrega ? "Entrega" : "Publicação"} {ddmm(data)}
+                </span>
+              </Link>
+            );
+          })}
+        </article>
+      </section>
+
+      {/* Fila da equipe */}
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <div className="flex items-baseline gap-3.5">
+            <h2 className="text-2xl font-bold tracking-[-0.02em]">Fila da equipe</h2>
+            <span className="label-mono text-stone-550">Por responsável</span>
+          </div>
+          <Link href="/posts" className="text-sm font-semibold underline-offset-4 hover:underline">
+            Ver todos os posts
           </Link>
-        ))}
-      </div>
-
-      <section>
-        <h2 className="mb-3 text-lg font-semibold text-slate-700">Visão geral</h2>
+        </div>
         {allPosts.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-400">
-            Nenhum post cadastrado ainda.
-          </p>
+          <p className="rounded-3xl bg-sand p-8 text-center text-sm text-stone-550">Nenhum post cadastrado ainda.</p>
         ) : (
           <PersonKanban
             posts={allPosts.map((p) => ({ ...p, data_publicacao_planejada: p.data_entrega }))}
@@ -113,17 +270,21 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      <section>
-        <h2 className="mb-3 text-lg font-semibold text-slate-700">Clientes</h2>
+      {/* Clientes */}
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <div className="flex items-baseline gap-3.5">
+            <h2 className="text-2xl font-bold tracking-[-0.02em]">Clientes</h2>
+            <span className="label-mono text-stone-550">{activeClients.length} ativos</span>
+          </div>
+          <Link href="/clientes" className="text-sm font-semibold underline-offset-4 hover:underline">
+            Ver clientes
+          </Link>
+        </div>
         {activeClients.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-400">
-            Nenhum cliente ativo.{" "}
-            <Link href="/clientes" className="text-bussola-blue underline">
-              Ver clientes
-            </Link>
-          </p>
+          <p className="rounded-3xl bg-sand p-8 text-center text-sm text-stone-550">Nenhum cliente ativo.</p>
         ) : (
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {activeClients.map((client) => {
               const cPosts = allPosts.filter((p) => p.client_id === client.id);
               const aFazer = cPosts.filter(isAFazer).length;
@@ -132,21 +293,17 @@ export default async function DashboardPage() {
                 <Link
                   key={client.id}
                   href={`/clientes/${client.id}`}
-                  className="rounded-xl bg-white p-4 shadow-sm transition hover:shadow-md"
+                  className="flex items-center gap-3.5 rounded-3xl bg-sand p-4 transition hover:bg-sand-line"
                 >
-                  <div className="flex items-center justify-between">
-                    <p className="font-semibold text-slate-800">{client.nome}</p>
-                    {client.status === "pausado" && (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
-                        Pausado
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-2 flex gap-4 text-sm text-slate-500">
-                    <span>{aFazer} a fazer</span>
-                    {cAtrasados > 0 && (
-                      <span className="font-medium text-red-600">{cAtrasados} atrasados</span>
-                    )}
+                  <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-ink text-sm font-bold text-paper">
+                    {client.nome.charAt(0).toUpperCase()}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold">{client.nome}</p>
+                    <p className="mt-0.5 flex gap-3 text-[13px] text-stone-550">
+                      <span>{aFazer} a fazer</span>
+                      {cAtrasados > 0 && <span className="font-semibold text-[#9A2A12]">{cAtrasados} atrasados</span>}
+                    </p>
                   </div>
                 </Link>
               );

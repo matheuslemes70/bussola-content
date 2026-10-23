@@ -275,14 +275,14 @@ export function PersonKanban({
                   />
                 ))}
               </SortableContext>
-              {lista.length === 0 && <p className="px-1 py-4 text-center text-xs text-slate-400">—</p>}
+              {lista.length === 0 && <p className="px-1 py-4 text-center text-xs text-stone-450">—</p>}
             </Column>
           );
         })}
       </div>
       <DragOverlay dropAnimation={null}>
         {activePost ? (
-          <div className="w-60 rotate-2 rounded-lg bg-white p-3 shadow-xl ring-2 ring-bussola-yellow">
+          <div className="w-60 rotate-2 rounded-2xl bg-white p-3.5 shadow-xl ring-2 ring-bussola-yellow">
             <p className="text-sm font-semibold text-slate-800">{activePost.titulo}</p>
           </div>
         ) : null}
@@ -306,13 +306,16 @@ function Column({
   return (
     <div
       ref={setNodeRef}
-      className={`flex w-[80vw] max-w-[18rem] flex-shrink-0 snap-start flex-col rounded-xl p-2 transition sm:w-64 ${
-        isOver ? "bg-bussola-yellow/20 ring-2 ring-bussola-yellow" : "bg-slate-100"
+      className={`flex w-[80vw] max-w-[18rem] flex-shrink-0 snap-start flex-col rounded-3xl p-3 transition sm:w-[17rem] ${
+        isOver ? "bg-bussola-yellow/25 ring-2 ring-bussola-yellow" : "bg-sand"
       }`}
     >
-      <div className="mb-2 flex items-center justify-between px-1">
-        <span className="text-sm font-semibold text-slate-700">{label}</span>
-        <span className="rounded-full bg-white px-2 text-xs text-slate-500">{count}</span>
+      <div className="mb-2.5 flex items-center gap-2.5 px-1 pt-0.5">
+        <span className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-ink text-xs font-bold text-paper">
+          {label.charAt(0).toUpperCase()}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[15px] font-bold">{label}</span>
+        <span className="label-mono text-stone-550">{count}</span>
       </div>
       <div className="min-h-[48px] space-y-2">{children}</div>
     </div>
@@ -345,12 +348,8 @@ function Card({
   return (
     <div
       ref={setNodeRef}
-      className={`rounded-lg p-3 shadow-sm ${
-        atrasado
-          ? "bg-red-50 ring-1 ring-red-300"
-          : eHoje
-          ? "bg-emerald-50 ring-1 ring-emerald-300"
-          : "bg-slate-50"
+      className={`rounded-2xl bg-[#FBFAF7] p-3.5 ${
+        atrasado ? "ring-1 ring-[#E9B9A8]" : eHoje ? "ring-1 ring-emerald-300" : ""
       } ${isDragging ? "opacity-40" : ""}`}
     >
       <div className="flex items-start gap-2">
@@ -359,7 +358,7 @@ function Card({
           {...listeners}
           {...attributes}
           aria-label="Arrastar card"
-          className="mt-0.5 flex-shrink-0 cursor-grab touch-none text-slate-300 hover:text-slate-500 active:cursor-grabbing"
+          className="-ml-1 mt-0.5 flex-shrink-0 cursor-grab touch-none text-[#C9C2B3] hover:text-stone-550 active:cursor-grabbing"
         >
           <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
             <circle cx="7" cy="5" r="1.5" /><circle cx="13" cy="5" r="1.5" />
@@ -369,17 +368,17 @@ function Card({
         </button>
         <div className="min-w-0 flex-1">
           <Link href={`/posts/${post.id}`} className="block">
-            <p className="truncate text-sm font-medium text-slate-800 hover:text-bussola-blue">{post.titulo}</p>
+            <p className="truncate text-[14.5px] font-semibold text-ink hover:underline">{post.titulo}</p>
           </Link>
-          {clientName && <p className="mt-0.5 truncate text-xs font-medium text-bussola-blue">{clientName}</p>}
-          <p className="mt-0.5 text-xs text-slate-400">{FORMAT_LABELS[post.formato]}</p>
+          {clientName && <p className="mt-0.5 truncate text-[13px] text-stone-550">{clientName}</p>}
+          <p className="label-mono mt-1.5 text-[9.5px] text-stone-550">{FORMAT_LABELS[post.formato]}</p>
           {post.data_publicacao_planejada && (
-            <p className={`mt-1 inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
+            <p className={`mt-2 inline-block rounded-full px-2.5 py-1 text-xs font-semibold ${
               atrasado
-                ? "bg-red-100 text-red-700"
+                ? "bg-[#F6DDD3] text-[#8F2410]"
                 : eHoje
-                ? "bg-emerald-100 text-emerald-700"
-                : "bg-slate-100 text-slate-600"
+                ? "bg-emerald-100 text-emerald-800"
+                : "bg-paper text-[#4A463F]"
             }`}>
               {formatDate(post.data_publicacao_planejada)}{post.horario_publicacao_planejada ? ` \u00b7 ${post.horario_publicacao_planejada.slice(0, 5)}` : ""}
             </p>
@@ -389,7 +388,7 @@ function Card({
               value={post.status}
               onChange={(e) => onChangeEtapa(e.target.value as PostStatus)}
               disabled={pending}
-              className={`mt-2 w-full rounded px-1.5 py-1 text-xs font-medium outline-none ${STATUS_COLORS[post.status]}`}
+              className={`mt-2.5 h-8 w-full rounded-full px-2.5 text-xs font-semibold outline-none ${STATUS_COLORS[post.status]}`}
             >
               {STATUS_FLOW.map((s) => (
                 <option key={s} value={s}>{STATUS_LABELS[s]}</option>

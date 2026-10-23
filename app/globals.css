@@ -4,6 +4,8 @@
 
 :root {
   color-scheme: light;
+  --font-sans: "Hanken Grotesk Variable", "Hanken Grotesk";
+  --font-mono: "JetBrains Mono";
 }
 
 /* Rede de segurança contra scroll horizontal indesejado no mobile */
@@ -14,7 +16,7 @@ body {
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-paper font-sans text-ink antialiased;
 }
 
 /* Imagens e mídias nunca ultrapassam o container */
@@ -22,4 +24,11 @@ img,
 svg,
 video {
   max-width: 100%;
+}
+
+/* Rótulo técnico: fonte mono, caixa alta, espaçada */
+@layer components {
+  .label-mono {
+    @apply font-mono text-[10.5px] font-semibold uppercase tracking-[0.12em];
+  }
 }
