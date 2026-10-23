@@ -113,9 +113,6 @@ export function PostFormModal({
                   </select>
                 </Field>
               </div>
-              <Field label="Link de referência (interno, só a equipe vê)">
-                <input name="reference_link" defaultValue={post?.reference_link ?? ""} className="pinput" />
-              </Field>
               <Field label="Link do conteúdo entregue (aparece na aprovação do cliente)">
                 <input name="delivered_link" defaultValue={post?.delivered_link ?? ""} className="pinput" />
               </Field>

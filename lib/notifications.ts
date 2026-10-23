@@ -64,6 +64,36 @@ async function loadCtx(supabase: SupabaseClient, postId: string): Promise<Ctx | 
   return { post, client, responsavel, gestor };
 }
 
+// ---------- Avisos no sino (dentro da plataforma) ----------
+// Os e-mails continuam; isto garante que o aviso apareça também no sino.
+// Quem fez a ação não recebe aviso da própria ação.
+async function quemAgiu(supabase: SupabaseClient): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getUser();
+    return data?.user?.id ?? null;
+  } catch {
+    return null; // página pública de aprovação (sem login)
+  }
+}
+
+async function avisarNoSino(
+  supabase: SupabaseClient,
+  ids: (string | null | undefined)[],
+  mensagem: string,
+  postId: string
+) {
+  const autor = await quemAgiu(supabase);
+  const destinatarios = Array.from(new Set(ids.filter((id): id is string => !!id && id !== autor)));
+  if (destinatarios.length === 0) return;
+  try {
+    await supabase.from("notifications").insert(
+      destinatarios.map((user_id) => ({ user_id, post_id: postId, tipo: "geral", mensagem }))
+    );
+  } catch (err) {
+    console.error("[notifications] erro ao avisar no sino:", err);
+  }
+}
+
 export async function notifyNewPost(supabase: SupabaseClient, postId: string) {
   const ctx = await loadCtx(supabase, postId);
   if (!ctx) return;
@@ -83,7 +113,14 @@ export async function notifyNewPost(supabase: SupabaseClient, postId: string) {
 
 export async function notifyAwaitingApproval(supabase: SupabaseClient, postId: string) {
   const ctx = await loadCtx(supabase, postId);
-  if (!ctx?.gestor?.email) return;
+  if (!ctx) return;
+  await avisarNoSino(
+    supabase,
+    [ctx.post.dono_id, ctx.gestor?.id],
+    `"${ctx.post.titulo}" está em Para aprovação.`,
+    ctx.post.id
+  );
+  if (!ctx.gestor?.email) return;
   await sendEmail({
     to: ctx.gestor.email,
     subject: `Post enviado para aprovação — ${ctx.post.titulo}`,
@@ -100,6 +137,12 @@ export async function notifyAwaitingApproval(supabase: SupabaseClient, postId: s
 export async function notifyClientApproved(supabase: SupabaseClient, postId: string) {
   const ctx = await loadCtx(supabase, postId);
   if (!ctx) return;
+  await avisarNoSino(
+    supabase,
+    [ctx.post.responsavel_id, ctx.post.dono_id, ctx.gestor?.id],
+    `O cliente aprovou "${ctx.post.titulo}".`,
+    ctx.post.id
+  );
   const to = [ctx.responsavel?.email, ctx.gestor?.email];
   await sendEmail({
     to,
@@ -119,6 +162,13 @@ export async function notifyClientRequestedChanges(
 ) {
   const ctx = await loadCtx(supabase, postId);
   if (!ctx) return;
+  const resumo = comment.length > 120 ? `${comment.slice(0, 120)}…` : comment;
+  await avisarNoSino(
+    supabase,
+    [ctx.post.responsavel_id, ctx.post.dono_id, ctx.gestor?.id],
+    `O cliente pediu ajuste em "${ctx.post.titulo}": "${resumo}"`,
+    ctx.post.id
+  );
   const to = [ctx.responsavel?.email, ctx.gestor?.email];
   await sendEmail({
     to,
@@ -190,6 +240,12 @@ export async function notifyPautaResponse(supabase: SupabaseClient, pautaId: str
 export async function notifyStatusAlterar(supabase: SupabaseClient, postId: string) {
   const ctx = await loadCtx(supabase, postId);
   if (!ctx) return;
+  await avisarNoSino(
+    supabase,
+    [ctx.post.responsavel_id],
+    `"${ctx.post.titulo}" voltou para Alterar e precisa de ajuste.`,
+    ctx.post.id
+  );
   const to = [ctx.responsavel?.email, ctx.gestor?.email];
   await sendEmail({
     to,

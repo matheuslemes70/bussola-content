@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 
-const GESTOR = ["admin", "social_media"] as const;
+const GESTOR = ["admin", "social_media", "gestor_projetos"] as const;
 
 function parseRedes(raw: string): string[] {
   return raw

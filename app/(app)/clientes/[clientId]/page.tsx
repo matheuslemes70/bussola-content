@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { decryptSecret } from "@/lib/crypto";
 import { getCurrentUser } from "@/lib/auth";
-import { canEditBrandCore, canManageClients, canManagePosts, canViewDataPublicacao } from "@/lib/permissions";
+import { canCreatePosts, canEditBrandCore, canManageClients, canManagePosts, canViewDataPublicacao } from "@/lib/permissions";
 import { CLIENT_STATUS_LABELS } from "@/lib/status";
 import { Kanban } from "@/components/kanban/Kanban";
 import { BrandCoreForm } from "@/components/clients/BrandCoreForm";
@@ -96,7 +96,7 @@ export default async function ClientePage({
             <ClientFormModal users={allUsers} cliente={c} triggerLabel="Editar cliente"
               triggerClass="rounded-lg bg-bussola-blue px-4 py-2 text-sm font-medium text-white hover:brightness-110" />
           )}
-          {canManagePosts(me?.perfil) && (
+          {canCreatePosts(me?.perfil) && (
             <>
               <PostFormModal users={allUsers} fixedClientId={c.id} podeVerDataPublicacao={canViewDataPublicacao(me?.perfil)} triggerLabel="+ Novo post" />
               <BulkPostGenerator clientId={c.id} users={allUsers} />
@@ -143,7 +143,7 @@ export default async function ClientePage({
           clientId={c.id}
           posts={allPosts}
           users={allUsers}
-          canCreate={canManagePosts(me?.perfil)}
+          canCreate={canCreatePosts(me?.perfil)}
           pautas={allPautas}
           canSendPauta={canManageClients(me?.perfil)}
         />

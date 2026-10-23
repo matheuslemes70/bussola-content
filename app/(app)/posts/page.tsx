@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
-import { canManagePosts, canDeletePosts, canViewDataPublicacao } from "@/lib/permissions";
+import { canCreatePosts, canDeletePosts, canViewDataPublicacao } from "@/lib/permissions";
 import { isAtrasado } from "@/lib/status";
 import { PostFilters } from "@/components/posts/PostFilters";
 import { PostFormModal } from "@/components/posts/PostFormModal";
@@ -34,8 +34,9 @@ export default async function PostsPage({
   if (sp.status) rows = rows.filter((p) => p.status === sp.status);
   if (sp.formato) rows = rows.filter((p) => p.formato === sp.formato);
   if (sp.resp) rows = rows.filter((p) => p.responsavel_id === sp.resp || p.dono_id === sp.resp);
-  if (sp.de) rows = rows.filter((p) => (p.data_publicacao_planejada ?? "") >= sp.de!);
-  if (sp.ate) rows = rows.filter((p) => (p.data_publicacao_planejada ?? "") <= sp.ate!);
+  // Filtra pela mesma data que a tabela mostra (entrega), que todos os cargos veem.
+  if (sp.de) rows = rows.filter((p) => (p.data_entrega ?? "") >= sp.de!);
+  if (sp.ate) rows = rows.filter((p) => (p.data_entrega ?? "") <= sp.ate!);
   if (sp.atrasados === "1") rows = rows.filter(isAtrasado);
 
   const rowVMs: PostRow[] = rows.map((p) => {
@@ -58,7 +59,7 @@ export default async function PostsPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Todos os posts</h1>
-        {canManagePosts(me?.perfil) && (
+        {canCreatePosts(me?.perfil) && (
           <PostFormModal users={allUsers} clients={allClients} podeVerDataPublicacao={canViewDataPublicacao(me?.perfil)} triggerLabel="+ Novo post" />
         )}
       </div>

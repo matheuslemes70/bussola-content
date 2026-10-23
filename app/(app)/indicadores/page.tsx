@@ -55,7 +55,7 @@ export default async function IndicadoresPage() {
     <div className="p-4 sm:p-6">
       <h1 className="text-xl font-bold text-slate-900">Indicadores estratégicos</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Visão executiva da operação. Visível apenas para admin.
+        Visão executiva da operação. Visível para admin e gestão de projetos.
       </p>
 
       {/* Cards de resumo */}

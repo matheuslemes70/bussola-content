@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email";
 import { isAtrasado, formatDate } from "@/lib/status";
-import type { Post, User } from "@/lib/types";
+import type { Post, PostStatus, User } from "@/lib/types";
+
+const EM_PRODUCAO: PostStatus[] = ["a_produzir", "em_producao", "pronto_pra_editar", "alterar"];
 
 function createAdminClient() {
   return createClient(
@@ -38,7 +40,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: true, notificados: 0 });
   }
 
-  const { data: users } = await supabase.from("users").select("id, nome, email");
+  const { data: users } = await supabase.from("users").select("id, nome, email, ativo");
   const usersById = new Map(((users as User[]) ?? []).map((u) => [u.id, u]));
 
   // Para cada usuário, separa os posts em que ele é executor e em que é dono da demanda.
@@ -50,16 +52,20 @@ export async function GET(request: NextRequest) {
     porUsuario.get(userId)![papel].push(post);
   }
 
+  // Atraso de produção (conta pela data de entrega) vai para o executor e
+  // para o dono. Atraso de publicação (já entregue, falta publicar) vai só
+  // para o dono: o executor já fez a parte dele.
   for (const post of atrasados) {
-    if (post.responsavel_id) adicionar(post.responsavel_id, "executor", post);
-    if (post.dono_id && post.dono_id !== post.responsavel_id) adicionar(post.dono_id, "dono", post);
+    const deProducao = EM_PRODUCAO.includes(post.status);
+    if (deProducao && post.responsavel_id) adicionar(post.responsavel_id, "executor", post);
+    if (post.dono_id && (post.dono_id !== post.responsavel_id || !deProducao)) adicionar(post.dono_id, "dono", post);
   }
 
   let notificados = 0;
 
   for (const [userId, grupos] of Array.from(porUsuario.entries())) {
     const user = usersById.get(userId);
-    if (!user?.email) continue;
+    if (!user?.email || user.ativo === false) continue;
 
     const totalPosts = grupos.executor.length + grupos.dono.length;
     if (totalPosts === 0) continue;
@@ -68,9 +74,11 @@ export async function GET(request: NextRequest) {
       return lista
         .map(
           (p) =>
-            `<li><strong>${p.clients?.nome ?? "Cliente"}</strong> — ${p.titulo} (venceu em ${formatDate(
-              p.data_publicacao_planejada
-            )})</li>`
+            `<li><strong>${p.clients?.nome ?? "Cliente"}</strong> — ${p.titulo} (${
+              EM_PRODUCAO.includes(p.status)
+                ? `entrega era ${formatDate(p.data_entrega)}`
+                : `publicação era ${formatDate(p.data_publicacao_planejada)}`
+            })</li>`
         )
         .join("");
     };
@@ -80,7 +88,7 @@ export async function GET(request: NextRequest) {
       html += `<p>Você tem <strong>${grupos.executor.length}</strong> post(s) atrasado(s) para <strong>produzir</strong>:</p><ul>${listaHtml(grupos.executor)}</ul>`;
     }
     if (grupos.dono.length > 0) {
-      html += `<p>Como <strong>dono da demanda</strong>, esses posts estão atrasados com o executor e podem precisar da sua atenção (briefing, aprovação, etc.):</p><ul>${listaHtml(grupos.dono)}</ul>`;
+      html += `<p>Como <strong>dono da demanda</strong>, estes posts estão fora do prazo e podem precisar da sua atenção (briefing, aprovação do cliente ou publicação):</p><ul>${listaHtml(grupos.dono)}</ul>`;
     }
     html += `<p>Acesse <a href="https://app.bussolamedia.com.br">app.bussolamedia.com.br</a> para atualizar.</p>`;
 

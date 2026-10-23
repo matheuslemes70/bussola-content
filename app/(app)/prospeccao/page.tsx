@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
-import { canViewAdminPanels } from "@/lib/permissions";
+import { canViewProspeccao } from "@/lib/permissions";
 import { PROSPECT_ETAPA_LABELS, PROSPECT_ETAPA_ORDER, PROSPECT_ORIGEM_LABELS } from "@/lib/status";
 import type { Prospect, User } from "@/lib/types";
 import { ProspectForm } from "@/components/prospeccao/ProspectForm";
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ProspeccaoPage() {
   const me = await getCurrentUser();
-  if (!canViewAdminPanels(me?.perfil)) {
+  if (!canViewProspeccao(me?.perfil)) {
     redirect("/");
   }
 

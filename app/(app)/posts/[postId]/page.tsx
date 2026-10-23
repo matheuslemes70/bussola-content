@@ -65,6 +65,7 @@ export default async function PostPage({
   const refLinksList = (refLinks as PostReferenceLink[]) ?? [];
   const attachmentsList = (attachments as PostAttachment[]) ?? [];
   const resp = p.responsavel_id ? userMap.get(p.responsavel_id) : null;
+  const dono = p.dono_id ? userMap.get(p.dono_id) : null;
   const atrasado = isAtrasado(p);
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
   const pode = canManagePosts(me?.perfil);
@@ -114,7 +115,8 @@ export default async function PostPage({
               {canViewDataPublicacao(me?.perfil) && (
                 <Info label="Data de publicação" value={formatDate(p.data_publicacao_planejada)} />
               )}
-              <Info label="Responsável" value={resp?.nome || resp?.email || "—"} />
+              <Info label="Executor" value={resp?.nome || resp?.email || "—"} />
+              <Info label="Dono da demanda" value={dono?.nome || dono?.email || "—"} />
               <Info label="Conteúdo entregue" value={
                 p.delivered_link ? (
                   <span className="flex items-center gap-2">
@@ -133,6 +135,14 @@ export default async function PostPage({
               <p className="mb-1 text-xs font-medium uppercase text-slate-400">Imagens de referência</p>
               <Attachments postId={p.id} attachments={attachmentsList} canEdit={pode} />
             </div>
+            {p.ideia && (
+              <div className="mt-4">
+                <p className="mb-1 text-xs font-medium uppercase text-slate-400">Ideia do post (o cliente vê)</p>
+                <p className="whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+                  <RichText text={p.ideia} />
+                </p>
+              </div>
+            )}
             <div className="mt-4">
               <p className="mb-1 text-xs font-medium uppercase text-slate-400">Briefing (interno)</p>
               <p className="whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-700">

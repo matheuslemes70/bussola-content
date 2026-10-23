@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { encryptSecret } from "@/lib/crypto";
 
-const GESTOR = ["admin", "social_media"] as const;
+const GESTOR = ["admin", "social_media", "gestor_projetos"] as const;
 
 export async function updateBrandCore(clientId: string, formData: FormData) {
   const auth = await requireRole([...GESTOR]);

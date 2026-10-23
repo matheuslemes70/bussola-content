@@ -11,9 +11,11 @@ import {
 import type { PostFormat, PostStatus } from "@/lib/types";
 import { notifyUser, detectarMencoes } from "@/lib/notify";
 
-const GESTOR = ["admin", "social_media"] as const;
+const GESTOR = ["admin", "social_media", "gestor_projetos"] as const;
 
 export async function createPost(formData: FormData) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
   const supabase = await createClient();
 
   const titulo = String(formData.get("titulo") || "").trim();
@@ -22,7 +24,7 @@ export async function createPost(formData: FormData) {
   if (!client_id) return { error: "Cliente é obrigatório." };
 
   const responsavel = String(formData.get("responsavel_id") || "");
-  if (!responsavel) return { error: "Executor e obrigatorio." };
+  if (!responsavel) return { error: "Escolha quem vai executar o post." };
   const dono = String(formData.get("dono_id") || "");
   const data = String(formData.get("data_publicacao_planejada") || "");
   const dataEntrega = String(formData.get("data_entrega") || "");
@@ -37,7 +39,6 @@ export async function createPost(formData: FormData) {
       briefing: String(formData.get("briefing") || ""),
       caption: String(formData.get("caption") || ""),
       formato: (String(formData.get("formato") || "estatico")) as PostFormat,
-      reference_link: String(formData.get("reference_link") || "") || null,
       delivered_link: String(formData.get("delivered_link") || "") || null,
       data_publicacao_planejada: data || null,
       data_entrega: dataEntrega || null,
@@ -55,10 +56,10 @@ export async function createPost(formData: FormData) {
   await notifyNewPost(supabase, row.id as string);
   const postId = row.id as string;
   if (responsavel) {
-    await notifyUser(supabase, responsavel, `Voce foi definido como executor em "${titulo}".`, postId);
+    await notifyUser(supabase, responsavel, `Você foi definido como executor em "${titulo}".`, postId);
   }
   if (dono && dono !== responsavel) {
-    await notifyUser(supabase, dono, `Voce foi definido como dono da demanda "${titulo}".`, postId);
+    await notifyUser(supabase, dono, `Você foi definido como dono da demanda "${titulo}".`, postId);
   }
 
   revalidatePath(`/clientes/${client_id}`);
@@ -71,7 +72,7 @@ export async function updatePost(id: string, formData: FormData) {
   const supabase = await createClient();
 
   const responsavel = String(formData.get("responsavel_id") || "");
-  if (!responsavel) return { error: "Executor e obrigatorio." };
+  if (!responsavel) return { error: "Escolha quem vai executar o post." };
   const dono = String(formData.get("dono_id") || "");
   const dataEntrega = String(formData.get("data_entrega") || "");
   const horario = String(formData.get("horario_publicacao_planejada") || "");
@@ -95,7 +96,6 @@ export async function updatePost(id: string, formData: FormData) {
       briefing: String(formData.get("briefing") || ""),
       caption: String(formData.get("caption") || ""),
       formato: (String(formData.get("formato") || "estatico")) as PostFormat,
-      reference_link: String(formData.get("reference_link") || "") || null,
       delivered_link: String(formData.get("delivered_link") || "") || null,
       data_publicacao_planejada: data || null,
       data_entrega: dataEntrega || null,
@@ -112,10 +112,10 @@ export async function updatePost(id: string, formData: FormData) {
 
     const tituloAtual = String(formData.get("titulo") || "").trim();
   if (anterior && responsavel && anterior.responsavel_id !== responsavel) {
-    await notifyUser(supabase, responsavel, `Voce foi definido como executor em "${tituloAtual}".`, id);
+    await notifyUser(supabase, responsavel, `Você foi definido como executor em "${tituloAtual}".`, id);
   }
   if (anterior && dono && dono !== responsavel && anterior.dono_id !== dono) {
-    await notifyUser(supabase, dono, `Voce foi definido como dono da demanda "${tituloAtual}".`, id);
+    await notifyUser(supabase, dono, `Você foi definido como dono da demanda "${tituloAtual}".`, id);
   }
 if (anterior && anterior.status !== novoStatus) {
     if (novoStatus === "para_aprovacao") await notifyAwaitingApproval(supabase, id);
@@ -291,7 +291,7 @@ export async function addInternalComment(postId: string, texto: string) {
     await notifyUser(
       supabase,
       m.id,
-      `Voce foi mencionado no post "${postRowMencao?.titulo ?? ""}": "${trimmed.slice(0, 120)}"`,
+      `Você foi mencionado no post "${postRowMencao?.titulo ?? ""}": "${trimmed.slice(0, 120)}"`,
       postId
     );
   }
@@ -371,6 +371,8 @@ export async function createBulkPosts(
     horario: string | null;
   }[]
 ) {
+  const auth = await requireRole([...GESTOR]);
+  if ("error" in auth) return { error: auth.error };
   const supabase = await createClient();
 
   if (!executorId) {
@@ -410,6 +412,16 @@ export async function createBulkPosts(
   const { error } = await supabase.from("posts").insert(inserts);
   if (error) return { error: error.message };
 
+  if (executorId !== auth.user.id) {
+    const { data: cli } = await supabase.from("clients").select("nome").eq("id", clientId).single();
+    const n = inserts.length;
+    await notifyUser(
+      supabase,
+      executorId,
+      `${n} ${n === 1 ? "post novo" : "posts novos"}${cli?.nome ? ` de ${cli.nome}` : ""} ${n === 1 ? "foi atribuído" : "foram atribuídos"} a você.`
+    );
+  }
+
   revalidatePath(`/clientes/${clientId}`);
   return { ok: true, count: inserts.length };
 }
@@ -422,10 +434,10 @@ export async function updatePostPerson(id: string, novoExecutorId: string) {
 
   const { data: atual } = await supabase
     .from("posts")
-    .select("status, client_id")
+    .select("status, client_id, titulo, responsavel_id")
     .eq("id", id)
     .single();
-  if (!atual) return { error: "Post nao encontrado." };
+  if (!atual) return { error: "Post não encontrado." };
 
   const statusFinal = ["para_aprovacao", "aprovado", "publicado"];
   const payload: { responsavel_id: string; status?: string } = {
@@ -437,6 +449,15 @@ export async function updatePostPerson(id: string, novoExecutorId: string) {
 
   const { error } = await supabase.from("posts").update(payload).eq("id", id);
   if (error) return { error: error.message };
+
+  if (atual.responsavel_id !== novoExecutorId) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user?.id !== novoExecutorId) {
+      await notifyUser(supabase, novoExecutorId, `"${atual.titulo}" foi passado para você.`, id);
+    }
+  }
 
   revalidatePath("/");
   if (atual.client_id) revalidatePath(`/clientes/${atual.client_id}`);

@@ -9,14 +9,22 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 };
 
 // Regras de permissão (espelham as policies de RLS no banco).
-// Usadas para esconder/desabilitar ações na UI.
+// Usadas para esconder/desabilitar ações na UI E nas Server Actions:
+// as listas abaixo são a fonte única — tela, servidor e banco seguem as mesmas.
+//
+// Decisões (out/2026):
+// - Gestora de Projetos: cria/edita clientes e exclui posts; não mexe em
+//   equipe, prospecção nem financeiro.
+// - Editor e designer não criam posts (só editam o que recebem).
+export const ROLES_GESTAO: UserRole[] = ["admin", "social_media", "gestor_projetos"];
+export const ROLES_ADMIN: UserRole[] = ["admin"];
 
 export function canManageClients(role: UserRole | undefined): boolean {
-  return role === "admin" || role === "social_media" || role === "gestor_projetos";
+  return role !== undefined && ROLES_GESTAO.includes(role);
 }
 
 export function canEditBrandCore(role: UserRole | undefined): boolean {
-  return role === "admin" || role === "social_media" || role === "gestor_projetos";
+  return canManageClients(role);
 }
 
 export function canViewBrandCore(role: UserRole | undefined): boolean {
@@ -25,20 +33,30 @@ export function canViewBrandCore(role: UserRole | undefined): boolean {
 }
 
 export function canManagePosts(role: UserRole | undefined): boolean {
-  // Todos os perfis autenticados criam/editam posts.
+  // Todos os perfis autenticados editam os posts que recebem.
   return role !== undefined;
 }
 
+export function canCreatePosts(role: UserRole | undefined): boolean {
+  // Quem cria demanda é a gestão; editor e designer executam.
+  return role !== undefined && ROLES_GESTAO.includes(role);
+}
+
 export function canDeletePosts(role: UserRole | undefined): boolean {
-  return role === "admin" || role === "social_media" || role === "gestor_projetos";
+  return role !== undefined && ROLES_GESTAO.includes(role);
 }
 
 export function canManageTeam(role: UserRole | undefined): boolean {
+  return role === "admin";
+}
+
+// Visão da equipe e Indicadores
+export function canViewAdminPanels(role: UserRole | undefined): boolean {
   return role === "admin" || role === "gestor_projetos";
 }
 
-export function canViewAdminPanels(role: UserRole | undefined): boolean {
-  return role === "admin" || role === "gestor_projetos";
+export function canViewProspeccao(role: UserRole | undefined): boolean {
+  return role === "admin";
 }
 
 export function canViewFinanceiro(role: UserRole | undefined): boolean {

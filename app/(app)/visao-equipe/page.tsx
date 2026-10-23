@@ -83,7 +83,7 @@ export default async function VisaoEquipePage() {
     <div className="p-4 sm:p-6">
       <h1 className="text-xl font-bold text-slate-900">Visão da equipe</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Carga de trabalho e produtividade por colaborador. Visível apenas para admin.
+        Carga de trabalho e produtividade por colaborador. Visível para admin e gestão de projetos.
       </p>
 
       <Tabela titulo="Como executor (quem produz)" linhas={comoExecutor} />

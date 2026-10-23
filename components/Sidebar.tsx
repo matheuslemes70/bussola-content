@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { ROLE_LABELS, canManageTeam, canViewAdminPanels, canViewFinanceiro } from "@/lib/permissions";
+import { ROLE_LABELS, canManageTeam, canViewAdminPanels, canViewFinanceiro, canViewProspeccao } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 
 // Ícones de traço simples, um por item do menu
@@ -87,6 +87,8 @@ export function Sidebar({
   if (canViewAdminPanels(user.perfil)) {
     estrategicoItems.push({ href: "/visao-equipe", label: "Visão da equipe" });
     estrategicoItems.push({ href: "/indicadores", label: "Indicadores" });
+  }
+  if (canViewProspeccao(user.perfil)) {
     estrategicoItems.push({ href: "/prospeccao", label: "Prospecção" });
   }
   if (canViewFinanceiro(user.perfil)) {

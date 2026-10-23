@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 
-const FINANCEIRO = ["admin", "gestor_projetos"] as const;
+const FINANCEIRO = ["admin"] as const;
 
 export async function createContract(formData: FormData) {
   const auth = await requireRole([...FINANCEIRO]);

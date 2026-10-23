@@ -33,12 +33,14 @@ export function AppShell({
   clients,
   users,
   podeVerDataPublicacao,
+  podeCriarPost,
   children,
 }: {
   user: User;
   clients: Client[];
   users: User[];
   podeVerDataPublicacao: boolean;
+  podeCriarPost: boolean;
   children: React.ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -78,6 +80,7 @@ export function AppShell({
 
             <div className="ml-auto flex items-center gap-2 sm:ml-0">
               <NotificationsBell />
+              {podeCriarPost && (
               <button
                 onClick={() => setNovoPostOpen(true)}
                 className="flex h-11 items-center gap-3 rounded-full bg-ink pl-5 pr-1.5 text-sm font-semibold text-white transition hover:bg-ink-muted"
@@ -89,6 +92,7 @@ export function AppShell({
                   </svg>
                 </span>
               </button>
+              )}
             </div>
           </div>
         </header>
@@ -98,6 +102,7 @@ export function AppShell({
         </main>
       </div>
 
+      {podeCriarPost && (
       <PostFormModal
         users={users}
         clients={clients}
@@ -105,6 +110,7 @@ export function AppShell({
         open={novoPostOpen}
         onOpenChange={setNovoPostOpen}
       />
+      )}
     </div>
   );
 }

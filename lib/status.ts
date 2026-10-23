@@ -89,23 +89,26 @@ const EM_PRODUCAO_STATUS: PostStatus[] = ["a_produzir", "pronto_pra_editar", "em
 // Etapas em que ja foi entregue e so falta publicar (atraso conta pela data de publicacao).
 const AGUARDANDO_PUBLICACAO_STATUS: PostStatus[] = ["para_aprovacao", "aprovado"];
 
+// "Hoje" sempre no horário de Brasília (o servidor roda em UTC; sem isso,
+// às 21h um post com entrega para hoje já virava "atrasado").
+export function hojeBrasilia(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+}
+
 export function isAtrasado(
   post: Pick<Post, "data_publicacao_planejada" | "data_entrega" | "status">
 ): boolean {
   if (post.status === "publicado") return false;
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
+  const hoje = hojeBrasilia(); // YYYY-MM-DD
 
   if (EM_PRODUCAO_STATUS.includes(post.status)) {
     if (!post.data_entrega) return false;
-    const dataEntrega = new Date(post.data_entrega + "T00:00:00");
-    return dataEntrega < hoje;
+    return post.data_entrega < hoje;
   }
 
   if (AGUARDANDO_PUBLICACAO_STATUS.includes(post.status)) {
     if (!post.data_publicacao_planejada) return false;
-    const dataPublicacao = new Date(post.data_publicacao_planejada + "T00:00:00");
-    return dataPublicacao < hoje;
+    return post.data_publicacao_planejada < hoje;
   }
 
   return false;
@@ -152,10 +155,9 @@ export function isProximoDoVencimento(
   }
   if (!dataRelevante) return false;
 
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const data = new Date(dataRelevante + "T00:00:00");
-  const diffDias = (data.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24);
+  const hoje = new Date(hojeBrasilia() + "T00:00:00").getTime();
+  const data = new Date(dataRelevante.slice(0, 10) + "T00:00:00").getTime();
+  const diffDias = Math.round((data - hoje) / (1000 * 60 * 60 * 24));
   return diffDias >= 0 && diffDias <= 2;
 }
 

@@ -37,32 +37,53 @@ import {
 } from "@/lib/status";
 import type { Post, PostStatus, User, Client } from "@/lib/types";
 
-const FABRICIO_ID = "824e5915-bf16-43e5-8a2d-ac9a47c5d953";
-const ANA_LUIZA_ID = "dfff4e0f-3a03-47d8-8658-5e6ad77d63de";
-const DANIEL_ID = "233fb85d-5e72-42b4-a494-b8820ab1bcce";
-
-const MATHEUS_ID = "e5b89d87-34d3-45ae-b720-fc7762031d9b";
-const GABRIELLY_ID = "4cdf3a03-ef7c-4842-a9b3-7e4559092adc";
-const VITORIA_ID = "dec92e5d-0ffb-4cdd-a3cc-2293e2417e2a";
-
-const PESSOAS = [
-  { id: FABRICIO_ID, label: "Fabricio" },
-  { id: ANA_LUIZA_ID, label: "Ana Luiza" },
-  { id: DANIEL_ID, label: "Daniel" },
-  { id: VITORIA_ID, label: "Vitoria" },
-  { id: MATHEUS_ID, label: "Matheus" },
-];
-
 const ETAPAS_PRODUCAO: PostStatus[] = ["a_produzir", "pronto_pra_editar", "em_producao", "alterar"];
+
+// Coluna que recolhe posts em produção cujo executor saiu da equipe (ou não
+// tem executor). Sem ela, esses posts sumiriam do painel.
+const SEM_EXECUTOR = "__sem_executor";
 
 type ColunaTipo = { kind: "pessoa"; id: string; label: string } | { kind: "status"; status: PostStatus; label: string };
 
-const COLUNAS: ColunaTipo[] = [
-  ...PESSOAS.map((p) => ({ kind: "pessoa" as const, id: p.id, label: p.label })),
+const COLUNAS_STATUS: ColunaTipo[] = [
   { kind: "status", status: "para_aprovacao", label: "Para aprovação" },
   { kind: "status", status: "aprovado", label: "Aprovado" },
   { kind: "status", status: "publicado", label: "Postado" },
 ];
+
+// Ordem das pessoas: quem executa primeiro, depois quem gerencia.
+const ORDEM_PERFIL: Record<string, number> = {
+  editor: 0,
+  designer: 1,
+  social_media: 2,
+  gestor_projetos: 3,
+  admin: 4,
+};
+
+// Monta as colunas a partir da equipe ativa: editores e designers sempre têm
+// coluna; os demais só quando têm algum post em produção.
+function montarColunas(users: User[], posts: Post[]): ColunaTipo[] {
+  const emProducao = new Set(
+    posts.filter((p) => ETAPAS_PRODUCAO.includes(p.status)).map((p) => p.responsavel_id)
+  );
+  const pessoas = users
+    .filter((u) => u.ativo && (u.perfil === "editor" || u.perfil === "designer" || emProducao.has(u.id)))
+    .sort((a, b) => {
+      const pa = ORDEM_PERFIL[a.perfil] ?? 9;
+      const pb = ORDEM_PERFIL[b.perfil] ?? 9;
+      if (pa !== pb) return pa - pb;
+      return (a.nome || a.email).localeCompare(b.nome || b.email, "pt-BR");
+    })
+    .map((u) => ({ kind: "pessoa" as const, id: u.id, label: (u.nome || u.email).split(" ")[0] }));
+
+  const ativos = new Set(users.filter((u) => u.ativo).map((u) => u.id));
+  const temOrfao = posts.some(
+    (p) => ETAPAS_PRODUCAO.includes(p.status) && (!p.responsavel_id || !ativos.has(p.responsavel_id))
+  );
+  const orfaos = temOrfao ? [{ kind: "pessoa" as const, id: SEM_EXECUTOR, label: "Sem executor ativo" }] : [];
+
+  return [...pessoas, ...orfaos, ...COLUNAS_STATUS];
+}
 
 function compareOrder(a: Post, b: Post): number {
   const oa = a.ordem ?? Number.POSITIVE_INFINITY;
@@ -93,8 +114,12 @@ const collisionStrategy: CollisionDetection = (args) => {
   return closestCorners(args);
 };
 
-function colunaIdDoPost(post: Post): string {
-  if (ETAPAS_PRODUCAO.includes(post.status)) return `pessoa:${post.responsavel_id}`;
+function colunaIdDoPost(post: Post, idsPessoas: Set<string>): string {
+  if (ETAPAS_PRODUCAO.includes(post.status)) {
+    return post.responsavel_id && idsPessoas.has(post.responsavel_id)
+      ? `pessoa:${post.responsavel_id}`
+      : `pessoa:${SEM_EXECUTOR}`;
+  }
   return `status:${post.status}`;
 }
 
@@ -123,8 +148,11 @@ export function PersonKanban({
     setItems(posts);
   }
 
-  const userMap = new Map(users.map((u) => [u.id, u]));
   const clientMap = new Map(clients.map((c) => [c.id, c]));
+  const COLUNAS = montarColunas(users, items);
+  const idsPessoas = new Set(
+    COLUNAS.filter((c) => c.kind === "pessoa" && c.id !== SEM_EXECUTOR).map((c) => (c as { id: string }).id)
+  );
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -134,7 +162,9 @@ export function PersonKanban({
 
   const columnOf = (col: ColunaTipo) => {
     if (col.kind === "pessoa") {
-      const filtered = items.filter((p) => p.responsavel_id === col.id && ETAPAS_PRODUCAO.includes(p.status));
+      const filtered = items.filter(
+        (p) => ETAPAS_PRODUCAO.includes(p.status) && colunaIdDoPost(p, idsPessoas) === `pessoa:${col.id}`
+      );
       return filtered.sort(compareByDataHorario);
     }
     const filtered = items.filter((p) => p.status === col.status).sort(compareByDataHorario);
@@ -163,8 +193,8 @@ export function PersonKanban({
     if (!activePost) return;
 
     const overPost = items.find((p) => p.id === over.id);
-    const overColunaId = overPost ? colunaIdDoPost(overPost) : String(over.id);
-    const currentColunaId = colunaIdDoPost(activePost);
+    const overColunaId = overPost ? colunaIdDoPost(overPost, idsPessoas) : String(over.id);
+    const currentColunaId = colunaIdDoPost(activePost, idsPessoas);
 
     if (overColunaId === currentColunaId) {
       // Reordenar dentro da mesma coluna.
@@ -182,6 +212,8 @@ export function PersonKanban({
 
     // Mudou de coluna.
     const [tipo, valor] = overColunaId.split(":");
+    // Não dá para "atribuir" um post à coluna de quem saiu: ela só recolhe.
+    if (tipo === "pessoa" && valor === SEM_EXECUTOR) return;
     if (tipo === "pessoa") {
       setItems((cur) =>
         cur.map((p) =>

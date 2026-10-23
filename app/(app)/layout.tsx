@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { canViewDataPublicacao } from "@/lib/permissions";
+import { canCreatePosts, canViewDataPublicacao } from "@/lib/permissions";
 import { AppShell } from "@/components/AppShell";
 import type { Client, User } from "@/lib/types";
 
@@ -26,6 +26,7 @@ export default async function AppLayout({
       clients={(clients as Client[]) ?? []}
       users={(users as User[]) ?? []}
       podeVerDataPublicacao={canViewDataPublicacao(user.perfil)}
+      podeCriarPost={canCreatePosts(user.perfil)}
     >
       {children}
     </AppShell>
