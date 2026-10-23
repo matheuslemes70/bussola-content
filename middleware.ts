@@ -1,12 +1,38 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 
 // Rotas públicas (não exigem login)
-const PUBLIC_PREFIXES = ["/login", "/aprovacao", "/pauta"];
+const PUBLIC_PREFIXES = ["/login", "/aprovacao", "/pauta", "/api/cron"];
+
+const ratelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(20, "1 m"),
+  analytics: true,
+  prefix: "bussola-ratelimit",
+});
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  const { pathname } = request.nextUrl;
+  const isPublic = PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
 
+  // Rate limit só nas rotas públicas (sem login)
+  if (isPublic) {
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
+      request.headers.get("x-real-ip") ??
+      "127.0.0.1";
+    const { success } = await ratelimit.limit(ip);
+    if (!success) {
+      return new NextResponse(
+        "Muitas tentativas. Aguarde um minuto e tente novamente.",
+        { status: 429 }
+      );
+    }
+  }
+
+  let response = NextResponse.next({ request });
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -27,13 +53,9 @@ export async function middleware(request: NextRequest) {
       },
     }
   );
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const { pathname } = request.nextUrl;
-  const isPublic = PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
 
   // Não logado tentando acessar área protegida -> login
   if (!user && !isPublic) {

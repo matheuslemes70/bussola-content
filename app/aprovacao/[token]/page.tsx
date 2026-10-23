@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FORMAT_LABELS, STATUS_LABELS, formatDate, formatDateTime } from "@/lib/status";
 import { ApprovalActions } from "@/components/approval/ApprovalActions";
+import { CopyCaption } from "@/components/posts/CopyCaption";
+import { RichText } from "@/components/ui/RichText";
 import type { Post, Client, Comment } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -86,10 +88,22 @@ export default async function ApprovalPage({
             </p>
           )}
 
+          {p.ideia && (
+            <div className="mt-4">
+              <div className="mb-1 flex items-center justify-between">
+                <p className="text-xs font-medium uppercase text-slate-400">Ideia do post</p>
+                <CopyCaption text={p.ideia} />
+              </div>
+              <p className="whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-700"><RichText text={p.ideia} /></p>
+            </div>
+          )}
           <div className="mt-4">
-            <p className="mb-1 text-xs font-medium uppercase text-slate-400">Legenda</p>
+            <div className="mb-1 flex items-center justify-between">
+              <p className="text-xs font-medium uppercase text-slate-400">Legenda</p>
+              {p.caption && <CopyCaption text={p.caption} />}
+            </div>
             <p className="whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
-              {p.caption || <span className="text-slate-400">Sem legenda.</span>}
+              {p.caption ? <RichText text={p.caption} /> : <span className="text-slate-400">Sem legenda.</span>}
             </p>
           </div>
         </div>

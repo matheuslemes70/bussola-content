@@ -18,7 +18,7 @@ export function CopyCaption({ text }: { text: string }) {
       onClick={copiar}
       className="rounded bg-bussola-blue px-2 py-0.5 text-xs font-medium text-white hover:brightness-110"
     >
-      {copiado ? "Copiado!" : "Copiar legenda"}
+      {copiado ? "Copiado!" : "Copiar"}
     </button>
   );
 }

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { MESES_PT, PAUTA_STATUS_LABELS } from "@/lib/status";
+import { MESES_PT, PAUTA_STATUS_LABELS, formatDate } from "@/lib/status";
 import { PautaForm } from "@/components/pauta/PautaForm";
 import type { Post, Client, PautaApproval } from "@/lib/types";
 
@@ -23,9 +23,12 @@ export default async function PautaPage({
     .select("*")
     .eq("token", token)
     .single();
-
   if (!pautaRow) notFound();
   const pauta = pautaRow as PautaApproval;
+
+  const isPeriodo = Boolean(pauta.data_inicio && pauta.data_fim);
+  const dataInicio = isPeriodo ? pauta.data_inicio! : `${pauta.ano}-${pad(pauta.mes)}-01`;
+  const dataFim = isPeriodo ? pauta.data_fim! : `${pauta.ano}-${pad(pauta.mes)}-31`;
 
   const [{ data: client }, { data: posts }] = await Promise.all([
     supabase.from("clients").select("*").eq("id", pauta.client_id).single(),
@@ -33,12 +36,12 @@ export default async function PautaPage({
       .from("posts")
       .select("*")
       .eq("client_id", pauta.client_id)
-      .gte("data_publicacao_planejada", `${pauta.ano}-${pad(pauta.mes)}-01`)
-      .lte("data_publicacao_planejada", `${pauta.ano}-${pad(pauta.mes)}-31`)
+      .gte("data_publicacao_planejada", dataInicio)
+      .lte("data_publicacao_planejada", dataFim)
       .order("data_publicacao_planejada"),
   ]);
-
   const c = client as Client | null;
+
   // DTO mínimo: nunca enviar briefing (a menos que liberado), reference_link,
   // delivered_link, public_token, responsavel_id, etc. para a página pública.
   const monthPosts = ((posts as Post[]) ?? []).map((p) => ({
@@ -47,8 +50,15 @@ export default async function PautaPage({
     formato: p.formato,
     data_publicacao_planejada: p.data_publicacao_planejada,
     briefing: pauta.incluir_briefing ? p.briefing : "",
+    ideia: p.ideia,
+    caption: p.caption,
+    delivered_link: p.delivered_link,
   }));
+
   const respondida = pauta.status !== "pendente";
+  const titulo = isPeriodo
+    ? `Pauta de ${formatDate(pauta.data_inicio)} a ${formatDate(pauta.data_fim)}`
+    : `Pauta de ${MESES_PT[pauta.mes - 1]} ${pauta.ano}`;
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -59,11 +69,10 @@ export default async function PautaPage({
           </p>
         </div>
       </header>
-
       <div className="mx-auto max-w-2xl space-y-6 px-4 py-10">
         <div className="text-center">
           <h1 className="text-xl font-bold text-slate-800">
-            Pauta de {MESES_PT[pauta.mes - 1]} {pauta.ano}
+            {titulo}
             {c ? ` — ${c.nome}` : ""}
           </h1>
           {respondida && (
@@ -74,10 +83,9 @@ export default async function PautaPage({
             </p>
           )}
         </div>
-
         {monthPosts.length === 0 ? (
           <p className="rounded-2xl bg-white p-6 text-center text-sm text-slate-400 shadow-sm">
-            Nenhum post planejado para este mês.
+            Nenhum post planejado para este período.
           </p>
         ) : (
           <PautaForm

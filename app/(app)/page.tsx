@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { canViewAdminPanels, canViewDataPublicacao } from "@/lib/permissions";
 import { isAtrasado, isAFazer, publicadoEsteMes } from "@/lib/status";
-import { Kanban } from "@/components/kanban/Kanban";
+import { PersonKanban } from "@/components/kanban/PersonKanban";
 import type { Post, Client, User } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -15,9 +17,10 @@ type DashCard = {
 
 export default async function DashboardPage() {
   const supabase = await createClient();
+  const me = await getCurrentUser();
 
   const [{ data: posts }, { data: clients }, { data: users }] = await Promise.all([
-    supabase.from("posts").select("*"),
+    supabase.from("posts").select("*").eq("arquivado", false),
     supabase.from("clients").select("*").order("nome"),
     supabase.from("users").select("*").eq("ativo", true).order("nome"),
   ]);
@@ -30,15 +33,40 @@ export default async function DashboardPage() {
   const activeIds = new Set(activeClients.map((c) => c.id));
   const allPosts = ((posts as Post[]) ?? []).filter((p) => activeIds.has(p.client_id));
 
+  const hojeBrasilia = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date()); // YYYY-MM-DD
   const aProduzir = allPosts.filter((p) => p.status === "a_produzir").length;
+  const prontoParaEditarHoje = allPosts.filter(
+    (p) => p.status === "pronto_pra_editar" && p.data_entrega === hojeBrasilia
+  ).length;
+  const prontoParaEditar = allPosts.filter((p) => p.status === "pronto_pra_editar").length;
   const aguardando = allPosts.filter((p) => p.status === "para_aprovacao").length;
   const ajuste = allPosts.filter((p) => p.status === "alterar").length;
   const aprovados = allPosts.filter((p) => p.status === "aprovado").length;
   const atrasados = allPosts.filter(isAtrasado).length;
+  const meusAtrasados = allPosts.filter(
+    (p) => isAtrasado(p) && (p.responsavel_id === me?.id || p.dono_id === me?.id)
+  ).length;
+
+  const hora = Number(
+    new Intl.DateTimeFormat("pt-BR", { hour: "numeric", hour12: false, timeZone: "America/Sao_Paulo" }).format(new Date())
+  );
+  const saudacao = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
+  const primeiroNome = (me?.nome || "").split(" ")[0] || "";
+  const isGestorOuAdmin = canViewAdminPanels(me?.perfil);
+  const mensagem =
+    isGestorOuAdmin && atrasados > 0
+      ? `A equipe tem ${atrasados} post${atrasados > 1 ? "s" : ""} atrasado${atrasados > 1 ? "s" : ""} que precisa${atrasados > 1 ? "m" : ""} de atenção.`
+      : !isGestorOuAdmin && meusAtrasados > 0
+      ? `Você tem ${meusAtrasados} post${meusAtrasados > 1 ? "s" : ""} atrasado${meusAtrasados > 1 ? "s" : ""} que merece${meusAtrasados > 1 ? "m" : ""} atenção hoje.`
+      : allPosts.length > 0
+      ? "Tudo em ordem por aqui — bom trabalho!"
+      : "Aqui está a visão geral das suas demandas.";
   const publicadosMes = allPosts.filter(publicadoEsteMes).length;
 
   const cards: DashCard[] = [
     { label: "A produzir", count: aProduzir, href: "/posts?status=a_produzir", accent: "border-slate-300" },
+    { label: "Pronto pra editar hoje", count: prontoParaEditarHoje, href: "/posts?status=pronto_pra_editar", accent: "border-indigo-400" },
+    { label: "Pronto pra editar", count: prontoParaEditar, href: "/posts?status=pronto_pra_editar", accent: "border-indigo-400" },
     { label: "Aguardando aprovação", count: aguardando, href: "/posts?status=para_aprovacao", accent: "border-amber-400" },
     { label: "Com ajuste pendente", count: ajuste, href: "/posts?status=alterar", accent: "border-orange-400" },
     { label: "Aprovados", count: aprovados, href: "/posts?status=aprovado", accent: "border-emerald-400" },
@@ -48,7 +76,14 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+      <div>
+        <h1 className="text-2xl font-bold text-slate-800">
+          {saudacao}{primeiroNome ? `, ${primeiroNome}` : ""}
+        </h1>
+        <p className={`mt-1 text-sm ${atrasados > 0 ? "text-red-600 font-medium" : "text-slate-500"}`}>
+          {mensagem}
+        </p>
+      </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
         {cards.map((c) => (
@@ -70,7 +105,11 @@ export default async function DashboardPage() {
             Nenhum post cadastrado ainda.
           </p>
         ) : (
-          <Kanban posts={allPosts} users={allUsers} clients={activeClients} />
+          <PersonKanban
+            posts={allPosts.map((p) => ({ ...p, data_publicacao_planejada: p.data_entrega }))}
+            users={allUsers}
+            clients={activeClients}
+          />
         )}
       </section>
 

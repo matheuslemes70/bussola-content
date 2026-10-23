@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
-import { canManagePosts, canDeletePosts } from "@/lib/permissions";
+import { canManagePosts, canDeletePosts, canViewDataPublicacao } from "@/lib/permissions";
 import { isAtrasado } from "@/lib/status";
 import { PostFilters } from "@/components/posts/PostFilters";
 import { PostFormModal } from "@/components/posts/PostFormModal";
@@ -19,7 +19,7 @@ export default async function PostsPage({
   const me = await getCurrentUser();
 
   const [{ data: posts }, { data: clients }, { data: users }] = await Promise.all([
-    supabase.from("posts").select("*").order("data_publicacao_planejada", { ascending: true, nullsFirst: false }),
+    supabase.from("posts").select("*").eq("arquivado", false).order("data_publicacao_planejada", { ascending: true, nullsFirst: false }),
     supabase.from("clients").select("*").order("nome"),
     supabase.from("users").select("*").eq("ativo", true).order("nome"),
   ]);
@@ -33,7 +33,7 @@ export default async function PostsPage({
   if (sp.client) rows = rows.filter((p) => p.client_id === sp.client);
   if (sp.status) rows = rows.filter((p) => p.status === sp.status);
   if (sp.formato) rows = rows.filter((p) => p.formato === sp.formato);
-  if (sp.resp) rows = rows.filter((p) => p.responsavel_id === sp.resp);
+  if (sp.resp) rows = rows.filter((p) => p.responsavel_id === sp.resp || p.dono_id === sp.resp);
   if (sp.de) rows = rows.filter((p) => (p.data_publicacao_planejada ?? "") >= sp.de!);
   if (sp.ate) rows = rows.filter((p) => (p.data_publicacao_planejada ?? "") <= sp.ate!);
   if (sp.atrasados === "1") rows = rows.filter(isAtrasado);
@@ -49,7 +49,7 @@ export default async function PostsPage({
       formato: p.formato,
       status: p.status,
       respNome: resp?.nome || resp?.email || null,
-      data: p.data_publicacao_planejada,
+      data: p.data_entrega,
       atrasado: isAtrasado(p),
     };
   });
@@ -59,11 +59,11 @@ export default async function PostsPage({
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Todos os posts</h1>
         {canManagePosts(me?.perfil) && (
-          <PostFormModal users={allUsers} clients={allClients} triggerLabel="+ Novo post" />
+          <PostFormModal users={allUsers} clients={allClients} podeVerDataPublicacao={canViewDataPublicacao(me?.perfil)} triggerLabel="+ Novo post" />
         )}
       </div>
 
-      <PostFilters clients={allClients} users={allUsers} />
+      <PostFilters clients={allClients} users={allUsers} meuId={me?.id ?? null} />
 
       <PostsBulkTable rows={rowVMs} canDelete={canDeletePosts(me?.perfil)} />
     </div>

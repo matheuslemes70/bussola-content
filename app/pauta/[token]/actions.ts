@@ -43,12 +43,15 @@ export async function submitPauta(
   // IMPORTANTE: o admin client ignora o RLS. Validamos que cada postId
   // pertence MESMO a esta pauta (cliente + mês) antes de inserir qualquer
   // comentário, evitando injeção de comentários em posts de outros clientes.
+  const isPeriodo = Boolean(pauta.data_inicio && pauta.data_fim);
+  const dataInicio = isPeriodo ? pauta.data_inicio : `${pauta.ano}-${pad(pauta.mes)}-01`;
+  const dataFim = isPeriodo ? pauta.data_fim : `${pauta.ano}-${pad(pauta.mes)}-31`;
   const { data: validPosts } = await supabase
     .from("posts")
     .select("id")
     .eq("client_id", pauta.client_id)
-    .gte("data_publicacao_planejada", `${pauta.ano}-${pad(pauta.mes)}-01`)
-    .lte("data_publicacao_planejada", `${pauta.ano}-${pad(pauta.mes)}-31`);
+    .gte("data_publicacao_planejada", dataInicio)
+    .lte("data_publicacao_planejada", dataFim);
   const allowed = new Set((validPosts ?? []).map((p) => p.id));
 
   // Comentários por post → tabela de comments (tipo cliente), visíveis no post.

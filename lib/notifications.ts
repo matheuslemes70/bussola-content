@@ -147,6 +147,17 @@ export async function notifyPautaResponse(supabase: SupabaseClient, pautaId: str
   const gestor = c?.responsavel_id
     ? (await supabase.from("users").select("*").eq("id", c.responsavel_id).single()).data as User | null
     : null;
+    // Notificacao dentro da plataforma (sininho), alem do e-mail.
+  if (gestor) {
+    const aprovouSino = (p.status as PautaStatus) === "aprovada";
+    const mesNomeSino = `${MESES_PT[p.mes - 1]} ${p.ano}`;
+    await supabase.from("notifications").insert({
+      user_id: gestor.id,
+      post_id: null,
+      tipo: "pauta_resposta",
+      mensagem: `Cliente ${c?.nome ?? ""} ${aprovouSino ? "aprovou a pauta de" : "pediu ajustes na pauta de"} ${mesNomeSino}.`,
+    });
+  }
   if (!gestor?.email) return;
 
   const aprovou = (p.status as PautaStatus) === "aprovada";

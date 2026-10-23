@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createPost, updatePost } from "@/app/(app)/posts/actions";
 import { FORMAT_LABELS, STATUS_LABELS, STATUS_FLOW } from "@/lib/status";
@@ -14,12 +14,14 @@ export function PostFormModal({
   triggerLabel,
   triggerClass,
   defaultDate,
+  podeVerDataPublicacao = true,
   open: openProp,
   onOpenChange,
 }: {
   users: User[];
   clients?: Client[];
   fixedClientId?: string;
+  podeVerDataPublicacao?: boolean;
   post?: Post;
   triggerLabel?: string;
   triggerClass?: string;
@@ -33,6 +35,8 @@ export function PostFormModal({
   const open = controlled ? !!openProp : openState;
   const setOpen = (v: boolean) => (controlled ? onOpenChange!(v) : setOpenState(v));
   const [erro, setErro] = useState<string | null>(null);
+  // Gestora de Projetos não executa nem é dona de demanda — não aparece nesses campos.
+  const atribuiveisUsers = users;
   const [pending, startTransition] = useTransition();
   const router = useRouter();
   const editing = Boolean(post);
@@ -84,8 +88,11 @@ export function PostFormModal({
               <Field label="Título">
                 <input name="titulo" required defaultValue={post?.titulo} className="pinput" />
               </Field>
+              <Field label="Ideia do post (visível para o cliente)">
+                <BoldableTextarea name="ideia" defaultValue={post?.ideia} />
+              </Field>
               <Field label="Briefing (instrução interna para a equipe)">
-                <textarea name="briefing" rows={3} defaultValue={post?.briefing} className="pinput" />
+                <BoldableTextarea name="briefing" defaultValue={post?.briefing} rows={6} />
               </Field>
               <Field label="Legenda (texto final da publicação — visível na aprovação do cliente)">
                 <textarea name="caption" rows={3} defaultValue={post?.caption} className="pinput" />
@@ -112,15 +119,37 @@ export function PostFormModal({
               <Field label="Link do conteúdo entregue (aparece na aprovação do cliente)">
                 <input name="delivered_link" defaultValue={post?.delivered_link ?? ""} className="pinput" />
               </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Data de publicação">
-                  <input type="date" name="data_publicacao_planejada"
-                    defaultValue={post?.data_publicacao_planejada ?? defaultDate ?? ""} className="pinput" />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Data de entrega">
+                  <input type="date" name="data_entrega"
+                    defaultValue={post?.data_entrega ?? ""} className="pinput" />
                 </Field>
-                <Field label="Responsável">
-                  <select name="responsavel_id" defaultValue={post?.responsavel_id ?? ""} className="pinput">
+                <Field label="Horário de entrega">
+                  <input type="time" name="horario_publicacao_planejada"
+                    defaultValue={post?.horario_publicacao_planejada ?? ""} className="pinput" />
+                </Field>
+              </div>
+              {podeVerDataPublicacao && (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="Data de publicação">
+                    <input type="date" name="data_publicacao_planejada"
+                      defaultValue={post?.data_publicacao_planejada ?? defaultDate ?? ""} className="pinput" />
+                  </Field>
+                </div>
+              )}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Dono da demanda">
+                  <select name="dono_id" defaultValue={post?.dono_id ?? ""} className="pinput">
                     <option value="">— Nenhum —</option>
-                    {users.map((u) => (
+                    {atribuiveisUsers.map((u) => (
+                      <option key={u.id} value={u.id}>{u.nome || u.email}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Executor *">
+                  <select name="responsavel_id" required defaultValue={post?.responsavel_id ?? ""} className="pinput">
+                    <option value="" disabled>Selecione...</option>
+                    {atribuiveisUsers.map((u) => (
                       <option key={u.id} value={u.id}>{u.nome || u.email}</option>
                     ))}
                   </select>
@@ -159,6 +188,60 @@ export function PostFormModal({
         }
       `}</style>
     </>
+  );
+}
+
+// Textarea com botão de negrito. Envolve o trecho selecionado em **...**
+// (Markdown). O texto continua salvo como texto puro; a formatação aparece
+// na exibição do briefing (ver components/ui/RichText.tsx).
+function BoldableTextarea({
+  name,
+  defaultValue,
+  rows = 3,
+}: {
+  name: string;
+  defaultValue?: string;
+  rows?: number;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  function aplicarNegrito() {
+    const el = ref.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const value = el.value;
+    const trecho = value.slice(start, end) || "texto";
+    el.value = value.slice(0, start) + "**" + trecho + "**" + value.slice(end);
+    el.focus();
+    // Deixa selecionado o conteúdo entre os ** para digitar por cima.
+    el.setSelectionRange(start + 2, start + 2 + trecho.length);
+  }
+
+  return (
+    <div>
+      <div className="mb-1 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={aplicarNegrito}
+          title="Selecione um trecho e clique para deixar em negrito"
+          className="rounded border border-slate-300 px-2 py-0.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
+        >
+          N
+        </button>
+        <span className="text-xs text-slate-400">
+          Selecione um trecho e clique em <strong>N</strong> (ou escreva{" "}
+          <code>**assim**</code>) para deixar em negrito.
+        </span>
+      </div>
+      <textarea
+        ref={ref}
+        name={name}
+        rows={rows}
+        defaultValue={defaultValue}
+        className="pinput"
+      />
+    </div>
   );
 }
 

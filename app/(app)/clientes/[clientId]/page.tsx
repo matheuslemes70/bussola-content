@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { decryptSecret } from "@/lib/crypto";
 import { getCurrentUser } from "@/lib/auth";
-import { canEditBrandCore, canManageClients, canManagePosts } from "@/lib/permissions";
+import { canEditBrandCore, canManageClients, canManagePosts, canViewDataPublicacao } from "@/lib/permissions";
 import { CLIENT_STATUS_LABELS } from "@/lib/status";
 import { Kanban } from "@/components/kanban/Kanban";
 import { BrandCoreForm } from "@/components/clients/BrandCoreForm";
@@ -10,6 +11,7 @@ import { AccessesManager } from "@/components/clients/AccessesManager";
 import { Calendar } from "@/components/clients/Calendar";
 import { FilesManager } from "@/components/clients/FilesManager";
 import { PostFormModal } from "@/components/posts/PostFormModal";
+import { BulkPostGenerator } from "@/components/posts/BulkPostGenerator";
 import { ClientFormModal } from "@/components/clients/ClientFormModal";
 import type { Client, Post, User, BrandCore, FileFolder, DriveFile, ClientAccess, PautaApproval } from "@/lib/types";
 
@@ -32,19 +34,20 @@ export default async function ClientePage({
 }) {
   const { clientId } = await params;
   const { tab } = await searchParams;
-  const activeTab: Tab = (["conteudo", "calendario", "brand", "arquivos"].includes(tab ?? "")
-    ? tab
-    : "conteudo") as Tab;
-
   const supabase = await createClient();
   const me = await getCurrentUser();
 
   const podeGerir = canManageClients(me?.perfil);
+  const podeVerCalendario = canViewDataPublicacao(me?.perfil);
+  const tabsVisiveis: Tab[] = podeVerCalendario
+    ? ["conteudo", "calendario", "brand", "arquivos"]
+    : ["conteudo", "brand", "arquivos"];
+  const activeTab: Tab = (tabsVisiveis.includes(tab as Tab) ? tab : "conteudo") as Tab;
 
   const [{ data: client }, { data: posts }, { data: users }, { data: brand }, { data: folders }, { data: files }, { data: pautas }, accessesRes] =
     await Promise.all([
       supabase.from("clients").select("*").eq("id", clientId).single(),
-      supabase.from("posts").select("*").eq("client_id", clientId).order("data_publicacao_planejada"),
+      supabase.from("posts").select("*").eq("client_id", clientId).eq("arquivado", false).order("data_publicacao_planejada"),
       supabase.from("users").select("*").eq("ativo", true).order("nome"),
       supabase.from("brand_core").select("*").eq("client_id", clientId).maybeSingle(),
       supabase.from("file_folders").select("*").eq("client_id", clientId).order("nome"),
@@ -55,13 +58,18 @@ export default async function ClientePage({
         : Promise.resolve({ data: [] as ClientAccess[] }),
     ]);
 
-  const accesses = (accessesRes.data as ClientAccess[]) ?? [];
+  const accesses = ((accessesRes.data as ClientAccess[]) ?? []).map((a) => ({ ...a, senha: decryptSecret(a.senha) }));
   const allPautas = (pautas as PautaApproval[]) ?? [];
 
   if (!client) notFound();
 
   const c = client as Client;
   const allPosts = (posts as Post[]) ?? [];
+  const hojeSP = new Date();
+  const mesAtual = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(hojeSP).slice(0, 7);
+  const nomeMes = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", month: "long" }).format(hojeSP);
+  const postsDoMes = allPosts.filter((p) => p.data_entrega?.startsWith(mesAtual));
+  const publicadosDoMes = postsDoMes.filter((p) => p.status === "publicado").length;
   const allUsers = (users as User[]) ?? [];
 
   return (
@@ -89,14 +97,23 @@ export default async function ClientePage({
               triggerClass="rounded-lg bg-bussola-blue px-4 py-2 text-sm font-medium text-white hover:brightness-110" />
           )}
           {canManagePosts(me?.perfil) && (
-            <PostFormModal users={allUsers} fixedClientId={c.id} triggerLabel="+ Novo post" />
+            <>
+              <PostFormModal users={allUsers} fixedClientId={c.id} podeVerDataPublicacao={canViewDataPublicacao(me?.perfil)} triggerLabel="+ Novo post" />
+              <BulkPostGenerator clientId={c.id} users={allUsers} />
+            </>
           )}
         </div>
       </div>
 
+      <p className="text-xs text-slate-500">
+        <span className="font-semibold capitalize text-slate-700">{nomeMes}</span>
+        {": "}{postsDoMes.length} {postsDoMes.length === 1 ? "post" : "posts"} no mês
+        {" ("}{publicadosDoMes} {publicadosDoMes === 1 ? "postado" : "postados"}{")"}
+      </p>
+
       {/* Tabs */}
       <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
-        {TABS.map((t) => (
+        {TABS.filter((t) => tabsVisiveis.includes(t.id)).map((t) => (
           <Link key={t.id} href={`/clientes/${c.id}?tab=${t.id}`}
             className={`-mb-px whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium transition ${
               activeTab === t.id
@@ -114,7 +131,10 @@ export default async function ClientePage({
             Nenhum post para este cliente ainda.
           </p>
         ) : (
-          <Kanban posts={allPosts} users={allUsers} />
+          <Kanban
+            posts={allPosts.map((p) => ({ ...p, data_publicacao_planejada: p.data_entrega }))}
+            users={allUsers}
+          />
         )
       )}
 

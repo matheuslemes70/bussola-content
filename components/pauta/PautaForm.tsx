@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { submitPauta } from "@/app/pauta/[token]/actions";
+import { RichText } from "@/components/ui/RichText";
+import { CopyCaption } from "@/components/posts/CopyCaption";
 import { FORMAT_LABELS, FORMAT_COLORS, formatDate } from "@/lib/status";
 import type { PostFormat } from "@/lib/types";
 
@@ -14,6 +16,9 @@ export type PautaPost = {
   formato: PostFormat;
   data_publicacao_planejada: string | null;
   briefing: string; // só preenchido quando incluir_briefing = true
+  caption: string;
+  ideia: string;
+  delivered_link: string | null;
 };
 
 export function PautaForm({
@@ -76,15 +81,42 @@ export function PautaForm({
           <h3 className="text-base font-semibold text-slate-800">{p.titulo}</h3>
           {incluirBriefing && p.briefing && (
             <p className="mt-2 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-              {p.briefing}
+              <RichText text={p.briefing} />
             </p>
           )}
+          {p.ideia && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase text-slate-400">Ideia do post</p>
+                <CopyCaption text={p.ideia} />
+              </div>
+              <p className="mt-1 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-700"><RichText text={p.ideia} /></p>
+            </div>
+          )}
+          {p.caption && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase text-slate-400">Legenda</p>
+                <CopyCaption text={p.caption} />
+              </div>
+              <p className="mt-1 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-700"><RichText text={p.caption} /></p>
+            </div>
+          )}
+          {p.delivered_link && (
+            <div className="mt-3">
+              <a href={p.delivered_link} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm font-medium text-bussola-blue hover:underline">
+                Ver conteúdo →
+              </a>
+            </div>
+          )}
           {!jaRespondida && (
-            <input
+            <textarea
               value={comentarios[p.id] ?? ""}
               onChange={(e) => setComentarios((c) => ({ ...c, [p.id]: e.target.value }))}
               placeholder="Comentário sobre este post (opcional)"
-              className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-bussola-blue"
+              rows={4}
+              className="mt-3 w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-bussola-blue"
             />
           )}
         </div>
@@ -101,9 +133,9 @@ export function PautaForm({
           <textarea
             value={geral}
             onChange={(e) => setGeral(e.target.value)}
-            rows={3}
+            rows={5}
             placeholder="Comentário geral sobre a pauta (obrigatório ao solicitar ajustes)"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-bussola-blue"
+            className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-bussola-blue"
           />
           {erro && <p className="mt-2 text-sm text-red-600">{erro}</p>}
           <div className="mt-3 flex flex-col gap-3 sm:flex-row">

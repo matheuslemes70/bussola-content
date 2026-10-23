@@ -3,8 +3,24 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  DndContext,
+  DragOverlay,
+  pointerWithin,
+  closestCenter,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  useDroppable,
+  type DragEndEvent,
+  type DragStartEvent,
+  type CollisionDetection,
+} from "@dnd-kit/core";
 import { PostFormModal } from "@/components/posts/PostFormModal";
-import { sendPautaForApproval } from "@/app/(app)/clientes/[clientId]/actions";
+import { sendPautaForApproval, regenerarLinkPauta } from "@/app/(app)/clientes/[clientId]/actions";
+import { updatePostDate } from "@/app/(app)/posts/actions";
 import { FORMAT_COLORS, FORMAT_LABELS, PAUTA_STATUS_LABELS } from "@/lib/status";
 import type { Post, User, PostFormat, PautaApproval } from "@/lib/types";
 
@@ -17,6 +33,12 @@ const SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 function pad(n: number) {
   return String(n).padStart(2, "0");
 }
+
+const collisionStrategy: CollisionDetection = (args) => {
+  const pointerHits = pointerWithin(args);
+  if (pointerHits.length > 0) return pointerHits;
+  return closestCenter(args);
+};
 
 export function Calendar({
   clientId,
@@ -41,9 +63,30 @@ export function Calendar({
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [sending, startSending] = useTransition();
   const [incluirBriefing, setIncluirBriefing] = useState(false);
+  const [periodoInicio, setPeriodoInicio] = useState("");
+  const [periodoFim, setPeriodoFim] = useState("");
   const [copiado, setCopiado] = useState(false);
+  const [items, setItems] = useState<Post[]>(posts);
+  const [prevPosts, setPrevPosts] = useState<Post[]>(posts);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [movePending, startMove] = useTransition();
 
-  const pauta = pautas.find((p) => p.ano === year && p.mes === month + 1) ?? null;
+  if (posts !== prevPosts) {
+    setPrevPosts(posts);
+    setItems(posts);
+  }
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } })
+  );
+
+  const temPeriodo = Boolean(periodoInicio && periodoFim);
+  const pauta = temPeriodo
+    ? pautas.find(
+        (p) => p.ano === year && p.mes === month + 1 && p.data_inicio === periodoInicio && p.data_fim === periodoFim
+      ) ?? null
+    : pautas.find((p) => p.ano === year && p.mes === month + 1 && p.data_inicio === null) ?? null;
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
     (typeof window !== "undefined" ? window.location.origin : "");
@@ -51,7 +94,28 @@ export function Calendar({
 
   function enviarPauta() {
     startSending(async () => {
-      await sendPautaForApproval(clientId, year, month + 1, incluirBriefing);
+      await sendPautaForApproval(
+        clientId,
+        year,
+        month + 1,
+        incluirBriefing,
+        periodoInicio || null,
+        periodoFim || null
+      );
+      router.refresh();
+    });
+  }
+  function gerarNovoLink() {
+    if (!confirm("O link atual vai parar de funcionar e um novo sera gerado. Continuar?")) return;
+    startSending(async () => {
+      await regenerarLinkPauta(
+        clientId,
+        year,
+        month + 1,
+        incluirBriefing,
+        periodoInicio || null,
+        periodoFim || null
+      );
       router.refresh();
     });
   }
@@ -84,12 +148,41 @@ export function Calendar({
     setFormOpen(true);
   }
 
+  function onDragStart(event: DragStartEvent) {
+    setActiveId(String(event.active.id));
+  }
+
+  function onDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over) return;
+    const postId = String(active.id);
+    const novaData = String(over.id);
+    const post = items.find((p) => p.id === postId);
+    if (!post || post.data_publicacao_planejada === novaData) return;
+
+    // Atualização otimista: move na tela na hora, sem esperar o servidor.
+    setItems((cur) =>
+      cur.map((p) => (p.id === postId ? { ...p, data_publicacao_planejada: novaData } : p))
+    );
+    startMove(async () => {
+      const res = await updatePostDate(postId, novaData);
+      if (res?.error) {
+        // reverte em caso de erro
+        setItems((cur) =>
+          cur.map((p) => (p.id === postId ? { ...p, data_publicacao_planejada: post.data_publicacao_planejada } : p))
+        );
+      }
+      router.refresh();
+    });
+  }
+
   const firstWeekday = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   // posts indexados por dia (YYYY-MM-DD)
   const porDia = new Map<string, Post[]>();
-  for (const p of posts) {
+  for (const p of items) {
     if (!p.data_publicacao_planejada) continue;
     const arr = porDia.get(p.data_publicacao_planejada) ?? [];
     arr.push(p);
@@ -99,6 +192,8 @@ export function Calendar({
   const cells: (number | null)[] = [];
   for (let i = 0; i < firstWeekday; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  const activePost = activeId ? items.find((p) => p.id === activeId) ?? null : null;
 
   return (
     <div className="rounded-xl bg-white p-5 shadow-sm">
@@ -136,7 +231,17 @@ export function Calendar({
           </div>
 
           {canSendPauta && (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1 text-xs text-slate-600">
+                <span>Período (opcional):</span>
+                <input type="date" value={periodoInicio}
+                  onChange={(e) => setPeriodoInicio(e.target.value)}
+                  className="rounded border border-slate-300 px-1.5 py-1 text-xs" />
+                <span>até</span>
+                <input type="date" value={periodoFim}
+                  onChange={(e) => setPeriodoFim(e.target.value)}
+                  className="rounded border border-slate-300 px-1.5 py-1 text-xs" />
+              </div>
               <label className="flex items-center gap-1 text-xs text-slate-600">
                 <input type="checkbox" checked={incluirBriefing}
                   onChange={(e) => setIncluirBriefing(e.target.checked)} />
@@ -144,8 +249,20 @@ export function Calendar({
               </label>
               <button onClick={enviarPauta} disabled={sending}
                 className="rounded-lg bg-bussola-yellow px-3 py-1.5 text-sm font-bold text-black hover:brightness-95 disabled:opacity-60">
-                {sending ? "..." : pauta ? "Reenviar pauta" : "Enviar pauta para aprovação"}
+                {sending
+                  ? "..."
+                  : periodoInicio && periodoFim
+                  ? "Enviar período para aprovação"
+                  : pauta
+                  ? "Reenviar pauta"
+                  : "Enviar pauta para aprovação"}
               </button>
+              {pauta && (
+                <button onClick={gerarNovoLink} disabled={sending}
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-60">
+                  Gerar novo link
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -183,6 +300,9 @@ export function Calendar({
             {FORMAT_LABELS[f]}
           </span>
         ))}
+        {canCreate && (
+          <span className="ml-auto text-xs text-slate-400">Arraste um post para mudar a data.</span>
+        )}
       </div>
 
       {/* Cabeçalho dos dias da semana */}
@@ -191,42 +311,45 @@ export function Calendar({
       </div>
 
       {/* Grade */}
-      <div className="grid grid-cols-7 gap-1 pt-1">
-        {cells.map((day, idx) => {
-          if (day === null) return <div key={`b-${idx}`} className="min-h-[88px]" />;
-          const dateStr = `${year}-${pad(month + 1)}-${pad(day)}`;
-          const dayPosts = porDia.get(dateStr) ?? [];
-          const isHoje = dateStr === hojeStr;
-          return (
-            <div
-              key={dateStr}
-              onClick={() => abrirCriacao(dateStr)}
-              className={`min-h-[88px] rounded-lg border p-1 transition ${
-                isHoje ? "border-bussola-blue bg-blue-50/40" : "border-slate-200"
-              } ${canCreate ? "cursor-pointer hover:border-bussola-yellow hover:bg-bussola-yellow/5" : ""}`}
-            >
-              <div className="mb-1 flex items-center justify-between">
-                <span className={`text-xs font-semibold ${isHoje ? "text-bussola-blue" : "text-slate-500"}`}>
-                  {day}
-                </span>
-              </div>
-              <div className="space-y-1">
+      <DndContext
+        sensors={sensors}
+        collisionDetection={collisionStrategy}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragCancel={() => setActiveId(null)}
+      >
+        <div className="grid grid-cols-7 gap-1 pt-1">
+          {cells.map((day, idx) => {
+            if (day === null) return <div key={`b-${idx}`} className="min-h-[110px]" />;
+            const dateStr = `${year}-${pad(month + 1)}-${pad(day)}`;
+            const dayPosts = porDia.get(dateStr) ?? [];
+            const isHoje = dateStr === hojeStr;
+            return (
+              <DayCell
+                key={dateStr}
+                dateStr={dateStr}
+                day={day}
+                isHoje={isHoje}
+                canCreate={canCreate}
+                onClickEmpty={() => abrirCriacao(dateStr)}
+              >
                 {dayPosts.map((p) => (
-                  <Link
-                    key={p.id}
-                    href={`/posts/${p.id}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className={`block truncate rounded px-1.5 py-0.5 text-xs font-medium text-white ${FORMAT_COLORS[p.formato]}`}
-                    title={`${p.titulo} (${FORMAT_LABELS[p.formato]})`}
-                  >
-                    {p.titulo}
-                  </Link>
+                  <DraggablePostBadge key={p.id} post={p} canDrag={canCreate} />
                 ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+              </DayCell>
+            );
+          })}
+        </div>
+        <DragOverlay dropAnimation={null}>
+          {activePost ? (
+            <span
+              className={`block truncate rounded px-2 py-1 text-sm font-semibold text-white shadow-xl ring-2 ring-bussola-yellow ${FORMAT_COLORS[activePost.formato]}`}
+            >
+              {activePost.titulo}
+            </span>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
 
       {canCreate && (
         <PostFormModal
@@ -237,6 +360,72 @@ export function Calendar({
           onOpenChange={setFormOpen}
         />
       )}
+    </div>
+  );
+}
+
+function DayCell({
+  dateStr,
+  day,
+  isHoje,
+  canCreate,
+  onClickEmpty,
+  children,
+}: {
+  dateStr: string;
+  day: number;
+  isHoje: boolean;
+  canCreate: boolean;
+  onClickEmpty: () => void;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: dateStr });
+  return (
+    <div
+      ref={setNodeRef}
+      onClick={onClickEmpty}
+      className={`min-h-[110px] rounded-lg border p-1.5 transition ${
+        isOver ? "border-bussola-yellow bg-bussola-yellow/10 ring-2 ring-bussola-yellow" :
+        isHoje ? "border-bussola-blue bg-blue-50/40" : "border-slate-200"
+      } ${canCreate ? "cursor-pointer hover:border-bussola-yellow hover:bg-bussola-yellow/5" : ""}`}
+    >
+      <div className="mb-1 flex items-center justify-between">
+        <span className={`text-xs font-semibold ${isHoje ? "text-bussola-blue" : "text-slate-500"}`}>
+          {day}
+        </span>
+      </div>
+      <div className="space-y-1">{children}</div>
+    </div>
+  );
+}
+
+function DraggablePostBadge({ post, canDrag }: { post: Post; canDrag: boolean }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: post.id,
+    disabled: !canDrag,
+  });
+
+  if (isDragging) {
+    return (
+      <div ref={setNodeRef} className="h-6 rounded border border-dashed border-slate-300" />
+    );
+  }
+
+  return (
+    <div ref={setNodeRef} className="touch-none">
+      <div
+        {...(canDrag ? { ...listeners, ...attributes } : {})}
+        className={`flex items-center justify-between gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-white ${FORMAT_COLORS[post.formato]} ${canDrag ? "cursor-grab active:cursor-grabbing" : ""}`}
+        title={`${post.titulo} (${FORMAT_LABELS[post.formato]})`}
+      >
+        <Link
+          href={`/posts/${post.id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="min-w-0 flex-1 truncate hover:underline"
+        >
+          {post.titulo}
+        </Link>
+      </div>
     </div>
   );
 }
