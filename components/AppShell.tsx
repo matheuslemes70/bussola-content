@@ -49,7 +49,7 @@ export function AppShell({
   return (
     <div className="flex min-h-screen w-full max-w-full overflow-x-hidden bg-paper">
       <Sidebar user={user} mobileOpen={menuOpen} onClose={() => setMenuOpen(false)} />
-      <div className="flex min-w-0 max-w-full flex-1 flex-col">
+      <div className="flex min-w-0 max-w-full flex-1 flex-col md:pl-64">
         {/* Barra superior */}
         <header className="sticky top-0 z-30 bg-paper/90 backdrop-blur supports-[backdrop-filter]:bg-paper/75">
           <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-3 px-4 py-3 sm:px-8 sm:py-4">

@@ -248,15 +248,15 @@ export function PersonKanban({
       <div
         ref={topScrollRef}
         onScroll={onTopScroll}
-        className="mb-1 overflow-x-auto"
-        style={{ height: 14 }}
+        className="scroll-paper mb-2 overflow-x-auto"
+        style={{ height: 10 }}
       >
         <div style={{ width: scrollWidth, height: 1 }} />
       </div>
       <div
         ref={scrollRef}
         onScroll={onBoardScroll}
-        className="flex items-start snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-3 [-webkit-overflow-scrolling:touch]"
+        className="scroll-paper flex items-start snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-3 [-webkit-overflow-scrolling:touch]"
       >
         {COLUNAS.map((col) => {
           const colId = col.kind === "pessoa" ? `pessoa:${col.id}` : `status:${col.status}`;

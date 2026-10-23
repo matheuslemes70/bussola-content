@@ -53,4 +53,23 @@ video {
   .scroll-dark:hover::-webkit-scrollbar-thumb {
     background: #3A3733;
   }
+
+  /* Rolagem horizontal discreta sobre o fundo creme (fila da equipe) */
+  .scroll-paper {
+    scrollbar-width: thin;
+    scrollbar-color: #CFC8BA transparent;
+  }
+  .scroll-paper::-webkit-scrollbar {
+    height: 6px;
+  }
+  .scroll-paper::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scroll-paper::-webkit-scrollbar-thumb {
+    background: #CFC8BA;
+    border-radius: 999px;
+  }
+  .scroll-paper::-webkit-scrollbar-thumb:hover {
+    background: #A39C8E;
+  }
 }
