@@ -156,12 +156,14 @@ export default async function MinhaMesaPage() {
 
   // ---------- Topo ----------
   const tiles = [
-    { id: "atrasados", label: "Atrasados", n: atrasados.length, cor: "ink" },
-    { id: "risco", label: "Publicação em risco", n: emRisco.length, cor: "ink" },
+    // Cor = urgência: vermelho (urgente), preto (cobrar alguém),
+    // amarelo (sua vez), areia (acompanhar).
+    { id: "atrasados", label: "Atrasados", n: atrasados.length, cor: "red" },
+    { id: "risco", label: "Publicação em risco", n: emRisco.length, cor: "red" },
     { id: "equipe-atrasada", label: "Atrasados com a equipe", n: atrasadosEquipe.length, cor: "ink" },
     { id: "revisar", label: "Pra revisar", n: revisar.length, cor: "yellow" },
     { id: "ajustes", label: "Ajustes pedidos", n: ajustes.length + atrasados.filter((p) => p.status === "alterar").length, cor: "yellow" },
-    { id: "publicar", label: "Pra publicar", n: publicar.length, cor: "ink" },
+    { id: "publicar", label: "Pra publicar", n: publicar.length, cor: "yellow" },
     { id: "hoje", label: "Pra hoje", n: praHoje.length, cor: "sand" },
     { id: "cliente", label: "Com o cliente", n: comCliente.length, cor: "sand" },
     { id: "semana", label: "Próximos 7 dias", n: semana.length, cor: "sand" },
@@ -256,11 +258,13 @@ export default async function MinhaMesaPage() {
   }
 
   const corTile: Record<string, string> = {
+    red: "bg-[#B42318] text-white",
     ink: "bg-ink text-white",
     yellow: "bg-bussola-yellow text-ink",
     sand: "bg-sand text-ink",
   };
   const corTileLabel: Record<string, string> = {
+    red: "text-[#FBD5CE]",
     ink: "text-[#9A9488]",
     yellow: "text-[#3D2E05]",
     sand: "text-stone-550",
@@ -324,7 +328,7 @@ export default async function MinhaMesaPage() {
                     : `${STATUS_LABELS[p.status]}${execNome ? ` · com ${p.responsavel_id === me.id ? "você" : execNome}` : ""}`;
                 return (
                   <article key={p.id} className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-[20px] bg-[#FBFAF7] px-[18px] py-4">
-                    <span className={`flex h-12 min-w-[88px] flex-none items-center justify-center rounded-[14px] px-2 text-center text-[12px] font-extrabold leading-tight ${d <= hoje ? "bg-ink text-bussola-yellow" : "bg-sand text-ink"}`}>
+                    <span className={`flex h-12 min-w-[88px] flex-none items-center justify-center rounded-[14px] px-2 text-center text-[12px] font-extrabold leading-tight ${d <= hoje ? "bg-[#B42318] text-white" : "bg-[#FBE3DE] text-[#8F2410]"}`}>
                       {quando}
                     </span>
                     <div className="min-w-0 flex-[1_1_220px] space-y-1">
