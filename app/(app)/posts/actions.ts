@@ -619,15 +619,22 @@ export async function cobrarExecutor(id: string) {
   if ("error" in auth) return { error: auth.error };
   const supabase = await createClient();
   const { data: post } = await supabase
-    .from("posts").select("titulo, responsavel_id, data_publicacao_planejada").eq("id", id).single();
+    .from("posts").select("titulo, responsavel_id, data_publicacao_planejada, data_entrega").eq("id", id).single();
   if (!post?.responsavel_id) return { error: "Este post não tem executor." };
   if (post.responsavel_id === auth.user.id) return { error: "Este post está com você." };
 
   const quem = (auth.user.nome || "A social media").split(" ")[0];
   const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
-  const data = post.data_publicacao_planejada?.slice(0, 10);
-  const quando = !data ? "em breve" : data <= hoje ? "hoje" : "amanhã";
-  await notifyUser(supabase, post.responsavel_id, `${quem} está cobrando "${post.titulo}": publica ${quando}.`, id);
+  const entrega = post.data_entrega?.slice(0, 10);
+  const pub = post.data_publicacao_planejada?.slice(0, 10);
+  const ddmm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+  const motivo =
+    entrega && entrega < hoje
+      ? `a entrega era ${ddmm(entrega)}`
+      : pub
+      ? `publica ${pub < hoje ? `desde ${ddmm(pub)}` : pub === hoje ? "hoje" : "amanhã"}`
+      : "está pendente";
+  await notifyUser(supabase, post.responsavel_id, `${quem} está cobrando "${post.titulo}": ${motivo}.`, id);
   return { ok: true };
 }
 

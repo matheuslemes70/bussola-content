@@ -87,6 +87,21 @@ export default async function MinhaMesaPage() {
     })
     .sort((a, b) => (a.data_publicacao_planejada ?? "").localeCompare(b.data_publicacao_planejada ?? ""));
   const riscoHoje = emRisco.filter((p) => (p.data_publicacao_planejada ?? "").slice(0, 10) <= hoje).length;
+  // Atrasados com a equipe: posts dos meus clientes/demandas que já passaram
+  // da data de ENTREGA e ainda estão em produção com outra pessoa. É o que a
+  // social media precisa cobrar logo cedo.
+  const idsRisco = new Set(emRisco.map((p) => p.id));
+  const atrasadosEquipe = todos
+    .filter(
+      (p) =>
+        escopo(p) &&
+        PRODUCAO.includes(p.status) &&
+        p.responsavel_id !== me.id &&
+        !!p.data_entrega &&
+        p.data_entrega < hoje &&
+        !idsRisco.has(p.id)
+    )
+    .sort((a, b) => (a.data_entrega ?? "").localeCompare(b.data_entrega ?? ""));
   const emAjusteDeOutros = todos.filter((p) => escopo(p) && p.status === "alterar" && p.responsavel_id !== me.id).length;
 
   // Último pedido de ajuste de cada post que voltou pra mim
@@ -143,6 +158,7 @@ export default async function MinhaMesaPage() {
   const tiles = [
     { id: "atrasados", label: "Atrasados", n: atrasados.length, cor: "ink" },
     { id: "risco", label: "Publicação em risco", n: emRisco.length, cor: "ink" },
+    { id: "equipe-atrasada", label: "Atrasados com a equipe", n: atrasadosEquipe.length, cor: "ink" },
     { id: "revisar", label: "Pra revisar", n: revisar.length, cor: "yellow" },
     { id: "ajustes", label: "Ajustes pedidos", n: ajustes.length + atrasados.filter((p) => p.status === "alterar").length, cor: "yellow" },
     { id: "publicar", label: "Pra publicar", n: publicar.length, cor: "ink" },
@@ -158,6 +174,8 @@ export default async function MinhaMesaPage() {
         ? `${plural(riscoHoje, "post que publica hoje e ainda não está pronto", "posts que publicam hoje e ainda não estão prontos")}`
         : `${plural(emRisco.length, "post que publica amanhã e ainda não está pronto", "posts que publicam amanhã e ainda não estão prontos")}`
     );
+  if (atrasadosEquipe.length)
+    frases.push(`${plural(atrasadosEquipe.length, "post atrasado com a equipe", "posts atrasados com a equipe")}`);
   if (praHoje.length) frases.push(`${plural(praHoje.length, "entrega", "entregas")} pra hoje`);
   if (revisar.length) frases.push(`${plural(revisar.length, "post", "posts")} pra revisar`);
   const nAjustes = ajustes.length + atrasados.filter((p) => p.status === "alterar").length;
@@ -320,6 +338,34 @@ export default async function MinhaMesaPage() {
                       tipo="risco"
                       executorNome={comVoce || p.status === "para_aprovacao" ? null : execNome}
                     />
+                  </article>
+                );
+              })}
+            </Secao>
+          )}
+
+          {atrasadosEquipe.length > 0 && (
+            <Secao id="equipe-atrasada" titulo="Atrasados com a equipe" sub="Passaram da data de entrega" subCor="text-[#9A2A12]">
+              {atrasadosEquipe.map((p) => {
+                const exec = p.responsavel_id ? userMap.get(p.responsavel_id) : null;
+                const execNome = exec ? (exec.nome || exec.email).split(" ")[0] : null;
+                const dias = diasEntre(p.data_entrega!, hoje);
+                return (
+                  <article key={p.id} className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-[20px] bg-[#FBFAF7] px-[18px] py-4">
+                    <span className="flex h-12 w-12 flex-none items-center justify-center rounded-[14px] bg-ink text-[13px] font-extrabold text-bussola-yellow">
+                      {dias}d
+                    </span>
+                    <div className="min-w-0 flex-[1_1_220px] space-y-1">
+                      <p className="text-base font-semibold">{p.titulo}</p>
+                      <p className="text-[13px] text-stone-550">
+                        {clientMap.get(p.client_id)?.nome} · {FORMAT_LABELS[p.formato]} ·{" "}
+                        <span className="font-semibold text-[#4A463F]">
+                          {STATUS_LABELS[p.status]}{execNome ? ` · com ${execNome}` : " · sem executor"}
+                        </span>
+                      </p>
+                      <p className="text-[12.5px] font-semibold text-[#9A2A12]">Entrega era {ddmm(p.data_entrega)}</p>
+                    </div>
+                    <AcoesMesa postId={p.id} tipo="risco" executorNome={execNome} />
                   </article>
                 );
               })}
