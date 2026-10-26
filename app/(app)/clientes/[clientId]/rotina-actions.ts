@@ -14,33 +14,39 @@ export async function adicionarRotina(clientId: string, formData: FormData) {
   const auth = await requireRole([...GESTOR]);
   if ("error" in auth) return { error: auth.error };
 
-  const dia = Number(formData.get("dia_semana"));
+  const dias = formData.getAll("dia_semana").map(Number).filter((d) => d >= 1 && d <= 7);
+  const turnoRaw = String(formData.get("turno") || "");
+  const turno = ["manha", "tarde", "noite"].includes(turnoRaw) ? turnoRaw : null;
   const formato = String(formData.get("formato")) as PostFormat;
   const executor = String(formData.get("executor_id") || "");
   const diasAntes = Number(formData.get("dias_antes") ?? 2);
-  if (!(dia >= 1 && dia <= 7)) return { error: "Escolha o dia." };
+  if (dias.length === 0) return { error: "Marque pelo menos um dia." };
   if (!FORMATOS.includes(formato)) return { error: "Escolha o formato." };
   if (!executor) return { error: "Escolha quem executa." };
   if (!(diasAntes >= 0 && diasAntes <= 10)) return { error: "A entrega deve ser de 0 a 10 dias antes." };
 
   const supabase = await createClient();
-  const { error } = await supabase.from("rotina_semanal").insert({
-    client_id: clientId,
-    dia_semana: dia,
-    formato,
-    executor_id: executor,
-    dias_antes: diasAntes,
-  });
+  const { error } = await supabase.from("rotina_semanal").insert(
+    dias.map((dia) => ({
+      client_id: clientId,
+      dia_semana: dia,
+      formato,
+      executor_id: executor,
+      dias_antes: diasAntes,
+      turno,
+    }))
+  );
   if (error) return { error: error.message };
   revalidatePath(`/clientes/${clientId}`);
   return { ok: true };
 }
 
-export async function removerRotina(clientId: string, id: string) {
+export async function removerRotina(clientId: string, ids: string[]) {
   const auth = await requireRole([...GESTOR]);
   if ("error" in auth) return { error: auth.error };
+  if (!ids.length) return { ok: true };
   const supabase = await createClient();
-  const { error } = await supabase.from("rotina_semanal").delete().eq("id", id);
+  const { error } = await supabase.from("rotina_semanal").delete().in("id", ids).eq("client_id", clientId);
   if (error) return { error: error.message };
   revalidatePath(`/clientes/${clientId}`);
   return { ok: true };

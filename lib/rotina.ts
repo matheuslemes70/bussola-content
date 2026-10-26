@@ -11,7 +11,12 @@ export type RotinaItem = {
   executor_id: string;
   dias_antes: number;
   ativo: boolean;
+  turno: Turno | null;
 };
+
+export type Turno = "manha" | "tarde" | "noite";
+export const TURNOS: Record<Turno, string> = { manha: "manhã", tarde: "tarde", noite: "noite" };
+const ORDEM_TURNO: Record<string, number> = { manha: 0, tarde: 1, noite: 2 };
 
 export const DIAS_SEMANA = ["", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
 const DIAS_CURTO = ["", "seg", "ter", "qua", "qui", "sex", "sáb", "dom"];
@@ -47,11 +52,11 @@ export function diasUteisAntes(iso: string, n: number) {
   return d;
 }
 
-// A semana que a rotina cobre: a primeira segunda-feira que está pelo menos
-// 7 dias à frente de hoje. Rodando no domingo, é a semana que começa daqui a
-// 8 dias, e o editor produz durante a semana atual.
+// A semana que a rotina cobre: a próxima segunda-feira (ou hoje, se hoje já
+// for segunda). Rodando no domingo à noite, é a semana que começa no dia
+// seguinte.
 export function semanaAlvo(hojeIso: string) {
-  let seg = somarDias(hojeIso, 7);
+  let seg = hojeIso;
   while (diaDaSemana(seg) !== 1) seg = somarDias(seg, 1);
   return { inicio: seg, fim: somarDias(seg, 6) };
 }
@@ -79,11 +84,18 @@ export async function gerarSemana(
   const linhas = (itens as Linha[]) ?? [];
   if (linhas.length === 0) return { criados: 0, semana };
 
-  const novos = linhas.map((r) => {
+  const ordenadas = [...linhas].sort(
+    (a, b) => a.dia_semana - b.dia_semana || (ORDEM_TURNO[a.turno ?? ""] ?? -1) - (ORDEM_TURNO[b.turno ?? ""] ?? -1)
+  );
+  const novos = ordenadas.map((r) => {
     const publicacao = somarDias(semana.inicio, r.dia_semana - 1);
+    // A entrega nunca cai antes da segunda da própria semana (senão o post
+    // já nasceria atrasado).
+    const entrega = diasUteisAntes(publicacao, r.dias_antes);
+    const turno = r.turno ? ` ${TURNOS[r.turno]}` : "";
     return {
       client_id: r.client_id,
-      titulo: `${FORMAT_LABELS[r.formato]} · ${DIAS_CURTO[r.dia_semana]} ${ddmm(publicacao)} · preencher`,
+      titulo: `${FORMAT_LABELS[r.formato]} · ${DIAS_CURTO[r.dia_semana]} ${ddmm(publicacao)}${turno} · preencher`,
       ideia: "",
       briefing: "",
       caption: "",
@@ -92,7 +104,7 @@ export async function gerarSemana(
       responsavel_id: r.executor_id,
       dono_id: r.clients.responsavel_id,
       data_publicacao_planejada: publicacao,
-      data_entrega: diasUteisAntes(publicacao, r.dias_antes),
+      data_entrega: entrega < semana.inicio ? semana.inicio : entrega,
       rotina_chave: `${r.id}:${publicacao}`,
     };
   });

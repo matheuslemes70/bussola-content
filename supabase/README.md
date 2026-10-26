@@ -11,7 +11,8 @@ anote aqui na tabela.
 | 0020_fase1 | Permissões alinhadas (Gestora de Projetos, criação de posts, financeiro) e links de referência recuperados | sim (23/10/2026) |
 | 0021_revisao_interna | Etapa "Revisão interna" | sim (23/10/2026) |
 | 0022_agendado | Etapa "Agendado" | sim (23/10/2026) |
-| 0023_rotina_semanal | Rotina semanal de posts por cliente | — |
+| 0023_rotina_semanal | Rotina semanal de posts por cliente | sim (26/10/2026) |
+| 0024_rotina_turno | Turno (manhã, tarde, noite) na rotina | — |
 
 ## Criado direto no Supabase (fora dos arquivos)
 

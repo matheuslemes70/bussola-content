@@ -162,7 +162,7 @@ export default async function ClientePage({
       {activeTab === "rotina" && (
         <RotinaSemanal
           clientId={c.id}
-          itens={(rotina as { id: string; dia_semana: number; formato: Post["formato"]; executor_id: string; dias_antes: number }[]) ?? []}
+          itens={(rotina as { id: string; dia_semana: number; formato: Post["formato"]; executor_id: string; dias_antes: number; turno: "manha" | "tarde" | "noite" | null }[]) ?? []}
           users={allUsers}
           podeEditar={podeGerir}
           semana={semanaAlvo(hojeBrasilia())}
