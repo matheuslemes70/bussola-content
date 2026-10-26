@@ -131,6 +131,20 @@ export async function gerarSemana(
     tipo: "geral",
     mensagem: `${g.n} ${g.n === 1 ? "post novo" : "posts novos"} de ${g.cliente} para a semana de ${ddmm(semana.inicio)}. Os títulos e briefings ainda vão ser preenchidos.`,
   }));
+  // Confirmação para quem cuida de cada cliente (dono da demanda).
+  const porCliente = new Map<string, number>();
+  for (const p of lista) porCliente.set(p.client_id, (porCliente.get(p.client_id) ?? 0) + 1);
+  const donos = new Map(linhas.map((l) => [l.client_id, l.clients.responsavel_id]));
+  for (const [clientId, n] of Array.from(porCliente.entries())) {
+    const dono = donos.get(clientId);
+    if (!dono) continue;
+    avisos.push({
+      user_id: dono,
+      post_id: null,
+      tipo: "geral",
+      mensagem: `Rotina lançada: ${n} ${n === 1 ? "post" : "posts"} de ${nomes.get(clientId) ?? "cliente"} para a semana de ${ddmm(semana.inicio)}. Falta preencher título e briefing.`,
+    });
+  }
   if (avisos.length) await supabase.from("notifications").insert(avisos);
 
   return { criados: lista.length, semana };

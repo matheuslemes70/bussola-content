@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email";
 import { isAtrasado, formatDate, hojeBrasilia } from "@/lib/status";
+import { gerarSemana, diaDaSemana } from "@/lib/rotina";
 import type { Post, PostStatus, User } from "@/lib/types";
 
 const EM_PRODUCAO: PostStatus[] = ["a_produzir", "em_producao", "pronto_pra_editar", "alterar"];
@@ -20,6 +21,15 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createAdminClient();
+
+  // 0) Segunda tentativa da rotina semanal: se a de domingo à noite falhou,
+  // lança agora. Se já lançou, nada se repete (chave da rotina).
+  let rotinaSegunda: number | null = null;
+  if (diaDaSemana(hojeBrasilia()) === 1) {
+    const r = await gerarSemana(supabase, { hoje: hojeBrasilia() });
+    if (r.erro) console.error("[cron/atrasados] rotina de segunda:", r.erro);
+    rotinaSegunda = r.criados;
+  }
 
   // 1) Agendados cuja data de publicação já passou viram "Publicado".
   const { data: publicadosAgora } = await supabase
@@ -47,7 +57,7 @@ export async function GET(request: NextRequest) {
   );
 
   if (atrasados.length === 0) {
-    return NextResponse.json({ ok: true, notificados: 0, agendadosPublicados: publicadosAgora?.length ?? 0 });
+    return NextResponse.json({ ok: true, notificados: 0, agendadosPublicados: publicadosAgora?.length ?? 0, rotinaSegunda });
   }
 
   const { data: users } = await supabase.from("users").select("id, nome, email, ativo");
@@ -129,5 +139,6 @@ export async function GET(request: NextRequest) {
     notificados,
     totalAtrasados: atrasados.length,
     agendadosPublicados: publicadosAgora?.length ?? 0,
+    rotinaSegunda,
   });
 }
