@@ -13,6 +13,7 @@ anote aqui na tabela.
 | 0022_agendado | Etapa "Agendado" | sim (23/10/2026) |
 | 0023_rotina_semanal | Rotina semanal de posts por cliente | sim (26/10/2026) |
 | 0024_rotina_turno | Turno (manhã, tarde, noite) na rotina | sim (26/10/2026) |
+| 0025_entrega_no_dia | Entrega no dia da publicação na rotina e nos posts já lançados | — |
 
 ## Criado direto no Supabase (fora dos arquivos)
 

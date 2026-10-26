@@ -19,7 +19,7 @@ export async function adicionarRotina(clientId: string, formData: FormData) {
   const turno = ["manha", "tarde", "noite"].includes(turnoRaw) ? turnoRaw : null;
   const formato = String(formData.get("formato")) as PostFormat;
   const executor = String(formData.get("executor_id") || "");
-  const diasAntes = Number(formData.get("dias_antes") ?? 2);
+  const diasAntes = Number(formData.get("dias_antes") ?? 0);
   if (dias.length === 0) return { error: "Marque pelo menos um dia." };
   if (!FORMATOS.includes(formato)) return { error: "Escolha o formato." };
   if (!executor) return { error: "Escolha quem executa." };

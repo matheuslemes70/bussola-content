@@ -217,7 +217,7 @@ export function RotinaSemanal({
             </label>
             <label className="space-y-1.5">
               <span className="label-mono block text-stone-550">Entrega (dias úteis antes)</span>
-              <input name="dias_antes" type="number" min={0} max={10} defaultValue={2} className={campo} />
+              <input name="dias_antes" type="number" min={0} max={10} defaultValue={0} className={campo} />
             </label>
             <button
               type="submit"
@@ -228,8 +228,7 @@ export function RotinaSemanal({
             </button>
           </div>
           <p className="text-[12.5px] leading-relaxed text-stone-550">
-            Dois posts por dia? Adicione duas vezes: uma com turno Manhã e outra com turno Noite. A entrega nunca cai antes da segunda-feira
-            da própria semana.
+            Dois posts por dia? Adicione duas vezes: uma com turno Manhã e outra com turno Noite. Entrega 0 = no próprio dia da publicação.
           </p>
         </form>
       )}
