@@ -13,14 +13,18 @@ import { FilesManager } from "@/components/clients/FilesManager";
 import { PostFormModal } from "@/components/posts/PostFormModal";
 import { BulkPostGenerator } from "@/components/posts/BulkPostGenerator";
 import { ClientFormModal } from "@/components/clients/ClientFormModal";
+import { RotinaSemanal } from "@/components/clients/RotinaSemanal";
+import { semanaAlvo } from "@/lib/rotina";
+import { hojeBrasilia } from "@/lib/status";
 import type { Client, Post, User, BrandCore, FileFolder, DriveFile, ClientAccess, PautaApproval } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-type Tab = "conteudo" | "calendario" | "brand" | "arquivos";
+type Tab = "conteudo" | "calendario" | "rotina" | "brand" | "arquivos";
 const TABS: { id: Tab; label: string }[] = [
   { id: "conteudo", label: "Conteúdo" },
   { id: "calendario", label: "Calendário" },
+  { id: "rotina", label: "Rotina" },
   { id: "brand", label: "Sobre" },
   { id: "arquivos", label: "Arquivos" },
 ];
@@ -40,7 +44,9 @@ export default async function ClientePage({
   const podeGerir = canManageClients(me?.perfil);
   const podeVerCalendario = canViewDataPublicacao(me?.perfil);
   const tabsVisiveis: Tab[] = podeVerCalendario
-    ? ["conteudo", "calendario", "brand", "arquivos"]
+    ? podeGerir
+      ? ["conteudo", "calendario", "rotina", "brand", "arquivos"]
+      : ["conteudo", "calendario", "brand", "arquivos"]
     : ["conteudo", "brand", "arquivos"];
   const activeTab: Tab = (tabsVisiveis.includes(tab as Tab) ? tab : "conteudo") as Tab;
 
@@ -57,6 +63,10 @@ export default async function ClientePage({
         ? supabase.from("client_accesses").select("*").eq("client_id", clientId).order("created_at")
         : Promise.resolve({ data: [] as ClientAccess[] }),
     ]);
+  const { data: rotina } =
+    activeTab === "rotina"
+      ? await supabase.from("rotina_semanal").select("*").eq("client_id", clientId).eq("ativo", true)
+      : { data: [] };
 
   const accesses = ((accessesRes.data as ClientAccess[]) ?? []).map((a) => ({ ...a, senha: decryptSecret(a.senha) }));
   const allPautas = (pautas as PautaApproval[]) ?? [];
@@ -146,6 +156,16 @@ export default async function ClientePage({
           canCreate={canCreatePosts(me?.perfil)}
           pautas={allPautas}
           canSendPauta={canManageClients(me?.perfil)}
+        />
+      )}
+
+      {activeTab === "rotina" && (
+        <RotinaSemanal
+          clientId={c.id}
+          itens={(rotina as { id: string; dia_semana: number; formato: Post["formato"]; executor_id: string; dias_antes: number }[]) ?? []}
+          users={allUsers}
+          podeEditar={podeGerir}
+          semana={semanaAlvo(hojeBrasilia())}
         />
       )}
 

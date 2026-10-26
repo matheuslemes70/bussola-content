@@ -102,6 +102,10 @@ export default async function MinhaMesaPage() {
         !idsRisco.has(p.id)
     )
     .sort((a, b) => (a.data_entrega ?? "").localeCompare(b.data_entrega ?? ""));
+  // Posts criados pela rotina semanal que ainda não têm briefing.
+  const preencher = todos
+    .filter((p) => escopo(p) && !!p.rotina_chave && !(p.briefing ?? "").trim() && PRODUCAO.includes(p.status))
+    .sort((a, b) => (a.data_entrega ?? "").localeCompare(b.data_entrega ?? ""));
   const emAjusteDeOutros = todos.filter((p) => escopo(p) && p.status === "alterar" && p.responsavel_id !== me.id).length;
 
   // Último pedido de ajuste de cada post que voltou pra mim
@@ -162,6 +166,7 @@ export default async function MinhaMesaPage() {
     { id: "risco", label: "Publicação em risco", n: emRisco.length, cor: "red" },
     { id: "equipe-atrasada", label: "Atrasados com a equipe", n: atrasadosEquipe.length, cor: "ink" },
     { id: "revisar", label: "Pra revisar", n: revisar.length, cor: "yellow" },
+    { id: "preencher", label: "Pra preencher", n: preencher.length, cor: "yellow" },
     { id: "ajustes", label: "Ajustes pedidos", n: ajustes.length + atrasados.filter((p) => p.status === "alterar").length, cor: "yellow" },
     { id: "publicar", label: "Pra publicar", n: publicar.length, cor: "yellow" },
     { id: "hoje", label: "Pra hoje", n: praHoje.length, cor: "sand" },
@@ -178,6 +183,8 @@ export default async function MinhaMesaPage() {
     );
   if (atrasadosEquipe.length)
     frases.push(`${plural(atrasadosEquipe.length, "post atrasado com a equipe", "posts atrasados com a equipe")}`);
+  if (preencher.length)
+    frases.push(`${plural(preencher.length, "post da rotina pra preencher", "posts da rotina pra preencher")}`);
   if (praHoje.length) frases.push(`${plural(praHoje.length, "entrega", "entregas")} pra hoje`);
   if (revisar.length) frases.push(`${plural(revisar.length, "post", "posts")} pra revisar`);
   const nAjustes = ajustes.length + atrasados.filter((p) => p.status === "alterar").length;
@@ -403,6 +410,37 @@ export default async function MinhaMesaPage() {
                   </article>
                 );
               })}
+            </Secao>
+          )}
+
+          {preencher.length > 0 && (
+            <Secao id="preencher" titulo="Pra preencher" sub="Criados pela rotina · faltam título e briefing">
+              <div className="rounded-[20px] bg-[#FBFAF7] px-[18px] py-1.5">
+                {preencher.map((p) => {
+                  const exec = p.responsavel_id ? userMap.get(p.responsavel_id) : null;
+                  const urgente = !!p.data_entrega && p.data_entrega <= somarDias(hoje, 1);
+                  return (
+                    <div key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-[#EDE9E0] py-3 last:border-0">
+                      <div className="min-w-0 flex-[1_1_240px]">
+                        <p className="text-[14.5px] font-semibold">{clientMap.get(p.client_id)?.nome}</p>
+                        <p className="text-[13px] text-stone-550">
+                          {FORMAT_LABELS[p.formato]} · publica {ddmm(p.data_publicacao_planejada)}
+                          {exec ? ` · ${(exec.nome || exec.email).split(" ")[0]}` : ""}
+                        </p>
+                      </div>
+                      <span className={`label-mono ${urgente ? "text-[#9A2A12]" : "text-stone-550"}`}>
+                        Entrega {ddmm(p.data_entrega)}
+                      </span>
+                      <Link
+                        href={`/posts/${p.id}`}
+                        className="flex h-10 items-center rounded-full bg-ink px-4 text-[13.5px] font-semibold text-white transition hover:bg-ink-muted"
+                      >
+                        Preencher
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
             </Secao>
           )}
 

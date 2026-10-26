@@ -75,6 +75,7 @@ export interface Post {
   dono_id: string | null;
   public_token: string | null;
   ordem: number | null;
+  rotina_chave?: string | null;
   created_at: string;
   updated_at: string;
 }

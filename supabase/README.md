@@ -10,7 +10,8 @@ anote aqui na tabela.
 | 0015_executor_obrigatorio e 0015_financeiro | Dois arquivos com o mesmo número; os dois foram rodados | sim |
 | 0020_fase1 | Permissões alinhadas (Gestora de Projetos, criação de posts, financeiro) e links de referência recuperados | sim (23/10/2026) |
 | 0021_revisao_interna | Etapa "Revisão interna" | sim (23/10/2026) |
-| 0022_agendado | Etapa "Agendado" | — |
+| 0022_agendado | Etapa "Agendado" | sim (23/10/2026) |
+| 0023_rotina_semanal | Rotina semanal de posts por cliente | — |
 
 ## Criado direto no Supabase (fora dos arquivos)
 
