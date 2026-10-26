@@ -29,6 +29,16 @@ export default async function DashboardPage() {
       .gte("created_at", inicioMes + "T00:00:00-03:00"),
   ]);
 
+  // Turno de cada post da rotina (manhã antes de noite na fila)
+  const { data: rotina } = await supabase.from("rotina_semanal").select("id, turno");
+  const RANK: Record<string, number> = { manha: 0, tarde: 1, noite: 2 };
+  const turnoRotina = new Map(((rotina as { id: string; turno: string | null }[]) ?? []).map((r) => [r.id, r.turno]));
+  const turnoDoPost = (p: Post) => {
+    const id = p.rotina_chave?.split(":")[0];
+    const t = id ? turnoRotina.get(id) : null;
+    return t ? RANK[t] ?? null : null;
+  };
+
   const allClients = (clients as Client[]) ?? [];
   const allUsers = (users as User[]) ?? [];
 
@@ -280,7 +290,12 @@ export default async function DashboardPage() {
           <p className="rounded-3xl bg-sand p-8 text-center text-sm text-stone-550">Nenhum post cadastrado ainda.</p>
         ) : (
           <PersonKanban
-            posts={allPosts.map((p) => ({ ...p, data_publicacao_planejada: p.data_entrega }))}
+            posts={allPosts.map((p) => ({
+              ...p,
+              data_publicacao_planejada: p.data_entrega,
+              _publicacao: p.data_publicacao_planejada,
+              _turno: turnoDoPost(p),
+            }))}
             users={allUsers}
             clients={activeClients}
           />

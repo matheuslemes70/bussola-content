@@ -34,6 +34,7 @@ import {
   isAtrasado,
   isProximoDoVencimento,
   formatDate,
+  compararFila,
 } from "@/lib/status";
 import type { Post, PostStatus, User, Client } from "@/lib/types";
 
@@ -101,13 +102,9 @@ function compareOrder(a: Post, b: Post): number {
 // manual antiga (que so fazia sentido dentro de uma unica etapa) fica sem
 // sentido. Nessas colunas, ordena sempre por data + horario de entrega.
 function compareByDataHorario(a: Post, b: Post): number {
-  const da = a.data_publicacao_planejada ?? "9999-12-31";
-  const db = b.data_publicacao_planejada ?? "9999-12-31";
-  if (da !== db) return da < db ? -1 : 1;
-  const ha = a.horario_publicacao_planejada ?? "23:59";
-  const hb = b.horario_publicacao_planejada ?? "23:59";
-  if (ha !== hb) return ha < hb ? -1 : 1;
-  return (a.created_at ?? "") < (b.created_at ?? "") ? -1 : 1;
+  // Aqui data_publicacao_planejada chega com a data de ENTREGA (ver painel).
+  const fila = (p: Post) => ({ ...p, data_entrega: p.data_publicacao_planejada });
+  return compararFila(fila(a), fila(b));
 }
 
 const collisionStrategy: CollisionDetection = (args) => {

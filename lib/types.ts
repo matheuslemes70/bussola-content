@@ -76,6 +76,9 @@ export interface Post {
   public_token: string | null;
   ordem: number | null;
   rotina_chave?: string | null;
+  // Campos calculados só para ordenar a fila (não existem no banco)
+  _turno?: number | null;
+  _publicacao?: string | null;
   created_at: string;
   updated_at: string;
 }

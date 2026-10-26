@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { canCreatePosts } from "@/lib/permissions";
-import { FORMAT_LABELS, STATUS_LABELS, isAtrasado, hojeBrasilia } from "@/lib/status";
+import { FORMAT_LABELS, STATUS_LABELS, isAtrasado, hojeBrasilia, compararFila } from "@/lib/status";
 import { AcoesMesa } from "@/components/mesa/AcoesMesa";
 import type { Client, Comment, Post, PostStatus, User } from "@/lib/types";
 
@@ -35,31 +35,40 @@ export default async function MinhaMesaPage() {
   const me = await getCurrentUser();
   if (!me) return null;
 
-  const [{ data: posts }, { data: clients }, { data: users }] = await Promise.all([
+  const [{ data: posts }, { data: clients }, { data: users }, { data: rotina }] = await Promise.all([
     supabase.from("posts").select("*").eq("arquivado", false).neq("status", "publicado"),
     supabase.from("clients").select("*").order("nome"),
     supabase.from("users").select("*").eq("ativo", true),
+    supabase.from("rotina_semanal").select("id, turno"),
   ]);
 
   const ativos = ((clients as Client[]) ?? []).filter((c) => c.status === "ativo");
   const clientMap = new Map(ativos.map((c) => [c.id, c]));
   const userMap = new Map(((users as User[]) ?? []).map((u) => [u.id, u]));
-  const todos = ((posts as Post[]) ?? []).filter((p) => clientMap.has(p.client_id));
+  // Turno vindo da rotina (manhã antes de noite), mesmo se o título mudar.
+  const RANK: Record<string, number> = { manha: 0, tarde: 1, noite: 2 };
+  const turnoRotina = new Map(((rotina as { id: string; turno: string | null }[]) ?? []).map((r) => [r.id, r.turno]));
+  const todos = ((posts as Post[]) ?? [])
+    .filter((p) => clientMap.has(p.client_id))
+    .map((p) => {
+      const t = p.rotina_chave ? turnoRotina.get(p.rotina_chave.split(":")[0]) : null;
+      return { ...p, _turno: t ? RANK[t] ?? null : null };
+    });
   const hoje = hojeBrasilia();
   const daquiSete = somarDias(hoje, 7);
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
 
   // ---------- Como executor ----------
   const meusExec = todos.filter((p) => p.responsavel_id === me.id && PRODUCAO.includes(p.status));
-  const atrasados = meusExec.filter(isAtrasado).sort((a, b) => (a.data_entrega ?? "").localeCompare(b.data_entrega ?? ""));
+  const atrasados = meusExec.filter(isAtrasado).sort(compararFila);
   const idsAtrasados = new Set(atrasados.map((p) => p.id));
   const ajustes = meusExec.filter((p) => p.status === "alterar" && !idsAtrasados.has(p.id));
   const praHoje = meusExec
     .filter((p) => !idsAtrasados.has(p.id) && p.status !== "alterar" && p.data_entrega === hoje)
-    .sort((a, b) => (a.horario_publicacao_planejada ?? "23:59").localeCompare(b.horario_publicacao_planejada ?? "23:59"));
+    .sort(compararFila);
   const semana = meusExec
     .filter((p) => p.status !== "alterar" && p.data_entrega && p.data_entrega > hoje && p.data_entrega <= daquiSete)
-    .sort((a, b) => (a.data_entrega ?? "").localeCompare(b.data_entrega ?? ""));
+    .sort(compararFila);
   const semData = meusExec.filter((p) => !p.data_entrega && p.status !== "alterar").length;
 
   // ---------- Como gestão do conteúdo ----------
@@ -101,11 +110,11 @@ export default async function MinhaMesaPage() {
         p.data_entrega < hoje &&
         !idsRisco.has(p.id)
     )
-    .sort((a, b) => (a.data_entrega ?? "").localeCompare(b.data_entrega ?? ""));
+    .sort(compararFila);
   // Posts criados pela rotina semanal que ainda não têm briefing.
   const preencher = todos
     .filter((p) => escopo(p) && !!p.rotina_chave && !(p.briefing ?? "").trim() && PRODUCAO.includes(p.status))
-    .sort((a, b) => (a.data_entrega ?? "").localeCompare(b.data_entrega ?? ""));
+    .sort(compararFila);
   const emAjusteDeOutros = todos.filter((p) => escopo(p) && p.status === "alterar" && p.responsavel_id !== me.id).length;
 
   // Último pedido de ajuste de cada post que voltou pra mim

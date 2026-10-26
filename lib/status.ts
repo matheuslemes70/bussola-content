@@ -194,3 +194,40 @@ export const PROSPECT_ETAPA_COLORS: Record<string, string> = {
   fechado: "bg-emerald-100 text-emerald-700",
   perdido: "bg-red-100 text-red-700",
 };
+
+// ---------- Ordem da fila de trabalho ----------
+// Entrega primeiro; empatou, vale quem publica antes; depois o turno
+// (manhã, tarde, noite; sem turno por último) e o horário. O turno vem da rotina semanal
+// (campo calculado _turno) ou, se faltar, do título provisório.
+type ItemFila = {
+  data_entrega: string | null;
+  data_publicacao_planejada: string | null;
+  horario_publicacao_planejada: string | null;
+  created_at: string;
+  titulo: string;
+  _turno?: number | null;
+  _publicacao?: string | null;
+};
+function rankTurno(p: ItemFila): number {
+  if (typeof p._turno === "number") return p._turno;
+  const t = (p.titulo || "").toLowerCase();
+  if (/\bmanh[ãa]\b/.test(t)) return 0;
+  if (/\btarde\b/.test(t)) return 1;
+  if (/\bnoite\b/.test(t)) return 2;
+  return 3; // sem turno: depois dos turnos do mesmo dia
+}
+export function compararFila(a: ItemFila, b: ItemFila): number {
+  const ea = a.data_entrega ?? "9999-12-31";
+  const eb = b.data_entrega ?? "9999-12-31";
+  if (ea !== eb) return ea < eb ? -1 : 1;
+  const pa = (a._publicacao !== undefined ? a._publicacao : a.data_publicacao_planejada) ?? "9999-12-31";
+  const pb = (b._publicacao !== undefined ? b._publicacao : b.data_publicacao_planejada) ?? "9999-12-31";
+  if (pa !== pb) return pa < pb ? -1 : 1;
+  const ta = rankTurno(a);
+  const tb = rankTurno(b);
+  if (ta !== tb) return ta - tb;
+  const ha = a.horario_publicacao_planejada ?? "23:59";
+  const hb = b.horario_publicacao_planejada ?? "23:59";
+  if (ha !== hb) return ha < hb ? -1 : 1;
+  return (a.created_at ?? "") < (b.created_at ?? "") ? -1 : 1;
+}
