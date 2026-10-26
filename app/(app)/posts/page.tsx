@@ -33,7 +33,10 @@ export default async function PostsPage({
   const clientMap = new Map(allClients.map((c) => [c.id, c]));
   const userMap = new Map(allUsers.map((u) => [u.id, u]));
 
-  let rows = (posts as Post[]) ?? [];
+  // Clientes inativos (pausados) ficam fora da lista. Só aparecem se o
+  // cliente for escolhido de propósito no filtro de cliente.
+  const ativosIds = new Set(allClients.filter((c) => c.status === "ativo").map((c) => c.id));
+  let rows = ((posts as Post[]) ?? []).filter((p) => ativosIds.has(p.client_id) || p.client_id === sp.client);
   if (sp.client) rows = rows.filter((p) => p.client_id === sp.client);
   if (sp.status) rows = rows.filter((p) => p.status === sp.status);
   if (sp.formato) rows = rows.filter((p) => p.formato === sp.formato);
@@ -68,7 +71,7 @@ export default async function PostsPage({
         )}
       </div>
 
-      <PostFilters clients={allClients} users={allUsers} meuId={me?.id ?? null} />
+      <PostFilters clients={allClients.filter((c) => c.status === "ativo" || c.id === sp.client)} users={allUsers} meuId={me?.id ?? null} />
 
       <PostsBulkTable rows={rowVMs} canDelete={canDeletePosts(me?.perfil)} />
     </div>

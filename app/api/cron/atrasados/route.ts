@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
   // 2) Atrasos: e-mail + aviso no sino para cada pessoa.
   const { data: posts, error } = await supabase
     .from("posts")
-    .select("*, clients(nome, responsavel_id)")
+    .select("*, clients(nome, responsavel_id, status)")
     .neq("status", "publicado")
     .eq("arquivado", false);
 
@@ -41,8 +41,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const atrasados = ((posts as (Post & { clients: { nome: string; responsavel_id: string | null } | null })[]) ?? []).filter(
-    (p) => isAtrasado(p)
+  const atrasados = ((posts as (Post & { clients: { nome: string; responsavel_id: string | null; status: string } | null })[]) ?? []).filter(
+    // Cliente inativo (pausado) não gera cobrança.
+    (p) => p.clients?.status === "ativo" && isAtrasado(p)
   );
 
   if (atrasados.length === 0) {

@@ -21,7 +21,8 @@ export default async function ClientesPage({
 
   const [{ data: clients }, { data: posts }, { data: users }] = await Promise.all([
     supabase.from("clients").select("*").order("nome"),
-    supabase.from("posts").select("*"),
+    // Arquivados não contam em "a fazer", "atrasados" nem "último publicado".
+    supabase.from("posts").select("*").eq("arquivado", false),
     supabase.from("users").select("*").eq("ativo", true).order("nome"),
   ]);
 
